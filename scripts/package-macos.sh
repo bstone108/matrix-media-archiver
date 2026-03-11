@@ -68,19 +68,6 @@ MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR=""
 mkdir -p "${WORK_DIR}" "${BUILDS_DIR}"
 rm -rf "${BUILD_DIR}" "${STAGE_DIR}"
 
-if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
-  MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR="$(mktemp -d "${WORK_DIR}/sqldrivers.XXXXXX")"
-  trap restore_sql_drivers EXIT
-  shopt -s nullglob
-  for plugin_path in "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}"/libqsql*.dylib; do
-    plugin_name="$(basename "${plugin_path}")"
-    if [[ "${plugin_name}" != "libqsqlite.dylib" ]]; then
-      mv "${plugin_path}" "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR}/"
-    fi
-  done
-  shopt -u nullglob
-fi
-
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="${QT_PREFIX}" \
@@ -95,6 +82,20 @@ fi
 
 mkdir -p "${STAGE_DIR}"
 cp -R "${APP_BUNDLE}" "${STAGE_DIR}/"
+
+if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
+  MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR="$(mktemp -d "${WORK_DIR}/sqldrivers.XXXXXX")"
+  trap restore_sql_drivers EXIT
+  shopt -s nullglob
+  for plugin_path in "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}"/libqsql*.dylib; do
+    plugin_name="$(basename "${plugin_path}")"
+    if [[ "${plugin_name}" != "libqsqlite.dylib" ]]; then
+      mv "${plugin_path}" "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR}/"
+    fi
+  done
+  shopt -u nullglob
+fi
+
 "${MACDEPLOYQT_BIN}" "${STAGE_DIR}/${APP_NAME}.app" -always-overwrite
 
 rm -f "${ARCHIVE_PATH}"

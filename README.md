@@ -1,39 +1,136 @@
 # MatrixMediaArchiver Qt
 
-MatrixMediaArchiver Qt is the Qt and Rust desktop rebuild of the Matrix downloader bot for Linux, Windows, and macOS.
-
-## License
-
-This repository is released under the [Matrix Media Archiver Attribution and Non-Commercial License 1.0](LICENSE).
-
-Short version:
-- you can use, study, and modify the code
-- you can share modified versions
-- you must credit Brandon Stone for any code you use from this project
-- you cannot sell this software or derivatives, or use them commercially without written permission
-
-This is source-available, not OSI open source, because commercial use is restricted.
+MatrixMediaArchiver Qt is a desktop Matrix media downloader for Linux, Windows, and macOS.
 
 ## What It Does
 
-- connects to a Matrix account or bot account
+- signs into a Matrix account or bot account
 - joins rooms and spaces
 - scans message history and watches live traffic for media
 - builds and processes a download queue
-- stores app state in SQLite
-- runs as a desktop app on Linux, Windows, and macOS
+- stores app state locally in SQLite
 
-## Basic Use
+## Install And Launch
+
+Linux x86_64 and arm64 AppImage:
+
+```bash
+chmod +x MatrixMediaArchiverQt-*.AppImage
+./MatrixMediaArchiverQt-*.AppImage
+```
+
+Windows x64 and arm64 zip:
+- unzip the release archive
+- open the extracted folder
+- run `MatrixMediaArchiverQt.exe`
+
+macOS arm64 zip:
+- unzip the release archive
+- open `MatrixMediaArchiverQt.app`
+- if Gatekeeper quarantines it on your own machine:
+
+```bash
+xattr -dr com.apple.quarantine MatrixMediaArchiverQt.app
+```
+
+## First-Time Setup
 
 1. Open the app.
 2. Go to `Settings`.
 3. Enter your homeserver URL, username, password, owner Matrix ID, and destination folder.
 4. Save settings.
-5. Join a room or space by room ID or alias.
-6. Turn the power toggle on from the dashboard.
-7. Watch `Queue`, `Workers`, and the dashboard log while it scans and downloads.
+5. If you want to limit scanning, set `Message Limit` and `Time Window`.
+6. If you want more parallel downloads, increase `Download Workers`.
+7. Go back to `Dashboard` and turn `Power` on.
+8. Join one or more rooms or spaces.
+9. Watch `Dashboard`, `Workers`, and `Queue` while the app scans and downloads.
 
-Chat command currently implemented:
+## Screen Guide
+
+### Dashboard
+
+The `Dashboard` is the main status view.
+
+- `Power` starts or stops the Matrix connection and downloader.
+- `Status` shows whether the app is stopped, starting, running, or in an error state.
+- `Queue` shows how many items are waiting to download.
+- `Runtime` shows:
+  - `Logged In`
+  - `Account Mode`
+  - `Joined Rooms`
+  - `Spaces`
+  - `Active Downloads`
+- `Log` shows timestamped activity messages from the Matrix connection, room joins, queue handling, settings saves, and download activity.
+
+### Workers
+
+The `Workers` page shows what the background workers are doing.
+
+- `Active Workers` is the total number of room workers currently tracked.
+- `Live Watchers` is the number of rooms currently being watched for new media.
+- `History Tasks` is the number of rooms currently backfilling older messages.
+- The table shows each room, whether its live watcher is `Watching` or `Paused`, and the current history mode and detail text.
+
+### Rooms
+
+Use the `Rooms` page for standard Matrix rooms.
+
+- Enter a room ID like `!room:server` or an alias like `#room:server`, then click `Join`.
+- The left list shows joined rooms.
+- The detail area shows:
+  - room title
+  - room ID
+  - canonical alias
+  - current destination folder label
+  - live watcher status
+  - history worker status
+  - known aliases seen for that room
+- `Leave Room` removes the room from active monitoring.
+
+### Spaces
+
+Use the `Spaces` page the same way as `Rooms`, but for Matrix spaces.
+
+- Enter a space ID like `!space:server` or an alias like `#space:server`, then click `Join`.
+- The page shows the same kinds of details as the room view:
+  - space title
+  - room ID
+  - canonical alias
+  - folder label
+  - live watcher status
+  - history worker status
+  - known aliases
+- `Leave Space` removes the space from active monitoring.
+
+### Queue
+
+The `Queue` page shows everything the downloader is trying to process.
+
+- `Items Waiting` shows queued items that still need work.
+- `Failed` shows permanently failed items.
+- `Active` shows how many downloader slots are busy out of the total worker count.
+
+The page has three sections:
+
+- `Active Downloads`
+  - shows one line per downloader slot
+  - active workers show filename, room, and byte progress
+  - idle workers show `Downloader N: Idle`
+- `Waiting`
+  - shows queued items, cooldown items, and undecryptable pending items
+  - columns: `File`, `Room`, `State`, `Error`
+- `Failed`
+  - shows permanently failed items
+  - columns: `ID`, `File`, `Room`, `Error`, `Updated`
+  - `Retry All` moves failed items back into the queue
+  - `Clear All` removes the failed-job records
+
+### Help
+
+The `Help` page documents the chat command support.
+
+- current command prefix: `!matrixdl`
+- currently implemented command:
 
 ```text
 !matrixdl join <room-id-or-alias>
@@ -45,92 +142,57 @@ Example:
 !matrixdl join #goofball:example.org
 ```
 
-## Running Packaged Builds
+- only the `Owner Matrix ID` from `Settings` is allowed to send commands
+- the app logs each command and whether it was followed
+- in dedicated bot mode, replies can be sent back by DM
+- in shared owner account mode, command results stay local to the app log
+- plain display-name joins are not supported
+- use a room alias like `#room:server` or a room ID like `!room:server`
 
-Linux x86_64 AppImage:
+### Settings
 
-```bash
-chmod +x MatrixMediaArchiverQt-*-linux-x86_64.AppImage
-./MatrixMediaArchiverQt-*-linux-x86_64.AppImage
-```
+The `Settings` page controls connection, scanning, retry, retention, and storage behavior.
 
-Linux arm64 AppImage:
-- run the `aarch64` AppImage on a native Linux ARM64 machine
+- `App Version` shows the current app version
+- `Homeserver URL` is your Matrix homeserver, for example `https://matrix.org`
+- `Username` is the Matrix account name the app signs in with
+- `Password` is the account password
+- `Owner Matrix ID` is the account allowed to send chat commands
+- `Destination Root` is the main folder where downloads are written
+- `Choose…` opens a folder picker for the destination root
+- `Message Limit` controls how many messages are examined during history scans
+- `Time Window Value` and `Time Window Unit` limit history scanning by age
+  - set the unit to `Disabled` to remove the time-based limit
+- `Retry Cooldown Minutes` controls how long the app waits before retrying temporary failures
+- `Retry Limit` controls how many times a job is retried before becoming a permanent failure
+- `Download Workers` controls how many downloads can run in parallel
+- `Auto Clear Failed After` and `Failed Retention Unit` control when permanent failures are removed automatically
+  - set the unit to `Disabled` or the value to `0` to keep failed items forever
+- `Save Settings` writes the settings and updates the running backend
+- `Reset History Scans` clears history-scan progress and discovery tracking so joined rooms can be rescanned from scratch
 
-Windows x64 zip:
-- unzip the release archive
-- run `MatrixMediaArchiverQt.exe`
+Important note:
+- `Reset History Scans` does not delete files already downloaded to disk
+- after a reset, matching files should still be skipped when hashes match
 
-Windows arm64 zip:
-- unzip the release archive
-- run `MatrixMediaArchiverQt.exe` on Windows ARM64
+### Verification
 
-macOS arm64 zip:
-- unzip the release archive
-- open `MatrixMediaArchiverQt.app`
-- if Gatekeeper quarantines it, remove quarantine on your own machine:
+The `Verification` page is for Matrix device verification.
 
-```bash
-xattr -dr com.apple.quarantine MatrixMediaArchiverQt.app
-```
+- `Status` shows the current verification state
+- `Device ID` shows the device currently involved in verification
+- `Request Verification` asks for verification
+- `Start SAS` begins short-auth-string verification
+- `Approve` accepts the presented verification values
+- `Reject` declines the verification
+- `Emoji Verification` shows the emoji sequence when available
+- `Decimals` shows the numeric SAS values when available
 
-## Repository Layout
+## License
 
-- the working cross-platform app lives at the repository root
-- the original Swift macOS app is kept locally under `reference/swift-mac-app/` as a behavior reference and is ignored by Git
-- local scratch builds and toolchains stay under `.work/`
-- packaged binaries are written to `builds/`
+This project uses [PolyForm Noncommercial 1.0.0](LICENSE).
 
-## Versioning
-
-- current app version: `2026.3.11.1`
-- source of truth: `VERSION.txt`
-- format: `year.month.day.build`
-
-The version is shown inside the app Settings page and is used for packaged archive names.
-
-## Building From Source
-
-macOS:
-
-```bash
-brew install cmake ninja pkgconf qt rustup
-cmake -S . -B .work/macos-dev -G Ninja -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt
-cmake --build .work/macos-dev
-ctest --test-dir .work/macos-dev --output-on-failure
-```
-
-Linux packaging:
-
-```bash
-./scripts/package-appimage.sh
-```
-
-Windows cross-package from macOS/Linux host:
-
-```bash
-./scripts/package-windows-cross.sh
-```
-
-Windows native package:
-
-```powershell
-./scripts/package-windows.ps1
-```
-
-Arch Linux ARM64 helper:
-
-```bash
-bash build-linux-arm64.command
-```
-
-## GitHub Automation
-
-GitHub Actions is set up in `.github/workflows/desktop-ci.yml`.
-
-- pushes and pull requests build Linux, Windows, and macOS artifacts
-- GitHub Actions also attempts Linux `aarch64` and Windows `arm64` packaged builds on hosted ARM runners
-- Rust dependencies are cached to avoid repeating the full backend compile every run
-- pushes to `main` or `master`, or a manual workflow dispatch, also create or update the latest GitHub release for `v<version>` from `VERSION.txt`
-
-That means once this repository is pushed, GitHub can build the macOS package instead of relying on a local build here.
+Short version:
+- you can use, modify, and share it for noncommercial purposes
+- you must keep the license and the attribution notices from [NOTICE](NOTICE)
+- commercial use requires separate permission

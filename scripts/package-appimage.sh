@@ -116,6 +116,18 @@ QT_PREFIX="$("${QMAKE_BIN}" -query QT_INSTALL_PREFIX)"
 MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR="${QT_PREFIX}/plugins/sqldrivers"
 MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR=""
 
+export APPIMAGE_EXTRACT_AND_RUN=1
+export QMAKE="${QMAKE_BIN}"
+export EXTRA_QT_PLUGINS="sqldrivers"
+export LINUXDEPLOY_OUTPUT_VERSION="${VERSION:-${APP_VERSION}}"
+
+cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${QT_PREFIX}"
+cmake --build "${BUILD_DIR}" --config Release
+ctest --test-dir "${BUILD_DIR}" --build-config Release --output-on-failure
+
+rm -rf "${APPDIR}"
+cmake --install "${BUILD_DIR}" --prefix "${APPDIR}/usr"
+
 if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
   MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR="$(mktemp -d "${TOOLS_DIR}/sqldrivers.XXXXXX")"
   trap restore_sql_drivers EXIT
@@ -128,18 +140,6 @@ if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
   done
   shopt -u nullglob
 fi
-
-export APPIMAGE_EXTRACT_AND_RUN=1
-export QMAKE="${QMAKE_BIN}"
-export EXTRA_QT_PLUGINS="sqldrivers"
-export LINUXDEPLOY_OUTPUT_VERSION="${VERSION:-${APP_VERSION}}"
-
-cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${QT_PREFIX}"
-cmake --build "${BUILD_DIR}" --config Release
-ctest --test-dir "${BUILD_DIR}" --build-config Release --output-on-failure
-
-rm -rf "${APPDIR}"
-cmake --install "${BUILD_DIR}" --prefix "${APPDIR}/usr"
 
 "${LINUXDEPLOY_APPIMAGE}" \
   --appdir "${APPDIR}" \
