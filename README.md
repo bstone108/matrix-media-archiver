@@ -1,6 +1,8 @@
 # MatrixMediaArchiver Qt
 
 MatrixMediaArchiver Qt is a desktop Matrix media downloader for Linux, Windows, and macOS.
+Full disclosure, I do utilize AI to assist with coding when I get stuck or for tedius tasks. 
+Most is done by me however. Please report issues you find.  Thanks.
 
 ## What It Does
 
