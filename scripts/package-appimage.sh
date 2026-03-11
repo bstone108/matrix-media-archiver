@@ -68,6 +68,19 @@ find_generated_appimage() {
   done | sort -nr | awk 'NR == 1 { print $2 }'
 }
 
+restore_sql_drivers() {
+  if [[ -z "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR:-}" ]]; then
+    return
+  fi
+
+  shopt -s nullglob
+  for plugin_path in "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR}"/*; do
+    mv "${plugin_path}" "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}/"
+  done
+  shopt -u nullglob
+  rmdir "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR}" 2>/dev/null || true
+}
+
 mkdir -p "${DIST_DIR}" "${TOOLS_DIR}" "${BUILDS_DIR}"
 
 QMAKE_BIN="${QMAKE:-}"
@@ -100,6 +113,21 @@ if [[ ! -x "${LINUXDEPLOY_QT_PLUGIN}" ]]; then
 fi
 
 QT_PREFIX="$("${QMAKE_BIN}" -query QT_INSTALL_PREFIX)"
+MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR="${QT_PREFIX}/plugins/sqldrivers"
+MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR=""
+
+if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
+  MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR="$(mktemp -d "${TOOLS_DIR}/sqldrivers.XXXXXX")"
+  trap restore_sql_drivers EXIT
+  shopt -s nullglob
+  for plugin_path in "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}"/libqsql*.so*; do
+    plugin_name="$(basename "${plugin_path}")"
+    if [[ "${plugin_name}" != libqsqlite.so* ]]; then
+      mv "${plugin_path}" "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR}/"
+    fi
+  done
+  shopt -u nullglob
+fi
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export QMAKE="${QMAKE_BIN}"

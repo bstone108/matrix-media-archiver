@@ -31,6 +31,9 @@ on:
       - "tests/**"
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: read
 
@@ -43,7 +46,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read version
         id: version
@@ -54,11 +57,21 @@ jobs:
         with:
           toolchain: 1.93.0
 
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          workspaces: |
-            backend -> backend/target
+          python-version: "3.12"
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml', 'backend/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install system build tools
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl desktop-file-utils libgl1-mesa-dev libxcb-cursor0 ninja-build patchelf zip
@@ -69,15 +82,73 @@ jobs:
           version: "6.10.2"
           arch: "linux_gcc_64"
           cache: "true"
+          setup-python: "false"
 
       - name: Package AppImage
         run: ./scripts/package-appimage.sh
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage
           path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage.zip
+          if-no-files-found: error
+
+  build-linux-arm64:
+    name: Build Linux AppImage (arm64)
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Read version
+        id: version
+        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml', 'backend/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl desktop-file-utils libgl1-mesa-dev libxcb-cursor0 ninja-build patchelf zip
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          host: "linux_arm64"
+          arch: "linux_gcc_arm64"
+          cache: "true"
+          setup-python: "false"
+
+      - name: Package AppImage
+        run: ARCH=aarch64 ./scripts/package-appimage.sh
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v6
+        with:
+          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-aarch64-appimage
+          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-aarch64-appimage.zip
           if-no-files-found: error
 
   build-windows:
@@ -91,23 +162,34 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read version
         id: version
-        shell: bash
-        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          $version = (Get-Content VERSION.txt -Raw).Trim()
+          "app_version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.93.0
 
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          workspaces: |
-            backend -> backend/target
+          python-version: "3.12"
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml', 'backend/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -115,15 +197,77 @@ jobs:
           version: "6.10.2"
           arch: "win64_msvc2022_64"
           cache: "true"
+          setup-python: "false"
 
       - name: Package Windows zip
         run: ./scripts/package-windows.ps1
 
       - name: Upload Windows zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64
           path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64.zip
+          if-no-files-found: error
+
+  build-windows-arm64:
+    name: Build Windows (arm64)
+    runs-on: windows-11-arm
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Read version
+        id: version
+        run: |
+          $version = (Get-Content VERSION.txt -Raw).Trim()
+          "app_version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml', 'backend/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          host: "windows_arm64"
+          arch: "win64_msvc2022_arm64"
+          cache: "true"
+          setup-python: "false"
+
+      - name: Package Windows zip
+        run: |
+          $env:WINDOWS_ARCH = "arm64"
+          ./scripts/package-windows.ps1
+
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v6
+        with:
+          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-arm64
+          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-arm64.zip
           if-no-files-found: error
 
   build-macos:
@@ -134,7 +278,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read version
         id: version
@@ -145,11 +289,21 @@ jobs:
         with:
           toolchain: 1.93.0
 
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          workspaces: |
-            backend -> backend/target
+          python-version: "3.12"
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml', 'backend/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -157,12 +311,13 @@ jobs:
           version: "6.10.2"
           arch: "clang_64"
           cache: "true"
+          setup-python: "false"
 
       - name: Package macOS zip
         run: ./scripts/package-macos.sh
 
       - name: Upload macOS zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64
           path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64.zip
@@ -173,7 +328,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master'))
     needs:
       - build-linux
+      - build-linux-arm64
       - build-windows
+      - build-windows-arm64
       - build-macos
     runs-on: ubuntu-22.04
     permissions:
@@ -181,22 +338,34 @@ jobs:
 
     steps:
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MatrixMediaArchiverQt-${{ needs.build-linux.outputs.app_version }}-linux-x86_64-appimage
-          path: release-artifacts
+          path: release-artifacts/linux
+
+      - name: Download Linux ARM64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: MatrixMediaArchiverQt-${{ needs.build-linux-arm64.outputs.app_version }}-linux-aarch64-appimage
+          path: release-artifacts/linux-arm64
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MatrixMediaArchiverQt-${{ needs.build-windows.outputs.app_version }}-windows-x64
-          path: release-artifacts
+          path: release-artifacts/windows
+
+      - name: Download Windows ARM64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: MatrixMediaArchiverQt-${{ needs.build-windows-arm64.outputs.app_version }}-windows-arm64
+          path: release-artifacts/windows-arm64
 
       - name: Download macOS artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MatrixMediaArchiverQt-${{ needs.build-macos.outputs.app_version }}-macos-arm64
-          path: release-artifacts
+          path: release-artifacts/macos
 
       - name: Create or update latest release
         env:
@@ -206,9 +375,10 @@ jobs:
           tag="v${APP_VERSION}"
           title="MatrixMediaArchiverQt ${APP_VERSION}"
           notes="Automated desktop release for ${APP_VERSION}."
+          mapfile -d '' assets < <(find release-artifacts -type f -print0)
           if gh release view "${tag}" >/dev/null 2>&1; then
             gh release edit "${tag}" --title "${title}" --notes "${notes}" --latest
-            gh release upload "${tag}" release-artifacts/* --clobber
+            gh release upload "${tag}" "${assets[@]}" --clobber
           else
-            gh release create "${tag}" release-artifacts/* --title "${title}" --notes "${notes}" --latest --target "${GITHUB_SHA}"
+            gh release create "${tag}" "${assets[@]}" --title "${title}" --notes "${notes}" --latest --target "${GITHUB_SHA}"
           fi

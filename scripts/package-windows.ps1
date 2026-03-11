@@ -9,14 +9,30 @@ if (-not (Test-Path $versionFile)) {
 }
 $version = (Get-Content $versionFile -Raw).Trim()
 
-$buildDir = if ($env:BUILD_DIR) { $env:BUILD_DIR } else { Join-Path $rootDir ".work/windows/build-msvc" }
-$stageDir = if ($env:STAGE_DIR) { $env:STAGE_DIR } else { Join-Path $rootDir ".work/windows/stage-msvc" }
+$windowsArch = if ($env:WINDOWS_ARCH) { $env:WINDOWS_ARCH.ToLowerInvariant() } else { "x64" }
+switch ($windowsArch) {
+    "x64" {
+        $cmakeArch = "x64"
+        $rustTarget = if ($env:RUST_TARGET) { $env:RUST_TARGET } else { "x86_64-pc-windows-msvc" }
+    }
+    "arm64" {
+        $cmakeArch = "ARM64"
+        $rustTarget = if ($env:RUST_TARGET) { $env:RUST_TARGET } else { "aarch64-pc-windows-msvc" }
+    }
+    default {
+        throw "Unsupported WINDOWS_ARCH '$windowsArch'. Expected x64 or arm64."
+    }
+}
+
+$buildDir = if ($env:BUILD_DIR) { $env:BUILD_DIR } else { Join-Path $rootDir ".work/windows/build-msvc-$windowsArch" }
+$stageDir = if ($env:STAGE_DIR) { $env:STAGE_DIR } else { Join-Path $rootDir ".work/windows/stage-msvc-$windowsArch" }
 $buildsDir = if ($env:BUILDS_DIR) { $env:BUILDS_DIR } else { Join-Path $rootDir "builds" }
-$archivePath = Join-Path $buildsDir "MatrixMediaArchiverQt-$version-windows-x64.zip"
+$archivePath = Join-Path $buildsDir "MatrixMediaArchiverQt-$version-windows-$windowsArch.zip"
 
 New-Item -ItemType Directory -Force -Path $buildsDir | Out-Null
 
-cmake -S $rootDir -B $buildDir -G "Visual Studio 17 2022" -A x64
+rustup target add $rustTarget
+cmake -S $rootDir -B $buildDir -G "Visual Studio 17 2022" -A $cmakeArch -DMATRIX_MEDIA_ARCHIVER_BACKEND_RUST_TARGET=$rustTarget
 cmake --build $buildDir --config Release
 ctest --test-dir $buildDir --build-config Release --output-on-failure
 

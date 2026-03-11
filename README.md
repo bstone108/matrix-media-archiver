@@ -54,9 +54,16 @@ chmod +x MatrixMediaArchiverQt-*-linux-x86_64.AppImage
 ./MatrixMediaArchiverQt-*-linux-x86_64.AppImage
 ```
 
+Linux arm64 AppImage:
+- run the `aarch64` AppImage on a native Linux ARM64 machine
+
 Windows x64 zip:
 - unzip the release archive
 - run `MatrixMediaArchiverQt.exe`
+
+Windows arm64 zip:
+- unzip the release archive
+- run `MatrixMediaArchiverQt.exe` on Windows ARM64
 
 macOS arm64 zip:
 - unzip the release archive
@@ -122,6 +129,7 @@ bash build-linux-arm64.command
 GitHub Actions is set up in `.github/workflows/desktop-ci.yml`.
 
 - pushes and pull requests build Linux, Windows, and macOS artifacts
+- GitHub Actions also attempts Linux `aarch64` and Windows `arm64` packaged builds on hosted ARM runners
 - Rust dependencies are cached to avoid repeating the full backend compile every run
 - pushes to `main` or `master`, or a manual workflow dispatch, also create or update the latest GitHub release for `v<version>` from `VERSION.txt`
 

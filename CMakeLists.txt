@@ -32,8 +32,13 @@ endif()
 
 include(GNUInstallDirs)
 
-if(WIN32)
-    find_package(Qt6 ${MATRIX_MEDIA_ARCHIVER_MIN_QT_VERSION} REQUIRED COMPONENTS Core Gui Widgets Test)
+if(WIN32 AND MINGW)
+    find_package(
+        Qt6 ${MATRIX_MEDIA_ARCHIVER_MIN_QT_VERSION}
+        REQUIRED
+        COMPONENTS Core Gui Widgets Test
+        OPTIONAL_COMPONENTS Sql
+    )
 
     if(NOT TARGET Qt6::Sql)
         get_filename_component(MATRIX_MEDIA_ARCHIVER_QT_PREFIX
