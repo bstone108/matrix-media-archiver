@@ -32,9 +32,28 @@ $archivePath = Join-Path $buildsDir "MatrixMediaArchiverQt-$version-windows-$win
 New-Item -ItemType Directory -Force -Path $buildsDir | Out-Null
 
 rustup target add $rustTarget
-cmake -S $rootDir -B $buildDir -G "Visual Studio 17 2022" -A $cmakeArch -DMATRIX_MEDIA_ARCHIVER_BACKEND_RUST_TARGET=$rustTarget
-cmake --build $buildDir --config Release
-ctest --test-dir $buildDir --build-config Release --output-on-failure
+
+$cmakeConfigureArgs = @(
+    "-S", $rootDir,
+    "-B", $buildDir,
+    "-G", "Visual Studio 17 2022",
+    "-A", $cmakeArch,
+    "-DMATRIX_MEDIA_ARCHIVER_BACKEND_RUST_TARGET=$rustTarget"
+)
+& cmake @cmakeConfigureArgs
+
+$cmakeBuildArgs = @(
+    "--build", $buildDir,
+    "--config", "Release"
+)
+& cmake @cmakeBuildArgs
+
+$ctestArgs = @(
+    "--test-dir", $buildDir,
+    "--build-config", "Release",
+    "--output-on-failure"
+)
+& ctest @ctestArgs
 
 $releaseDir = Join-Path $buildDir "Release"
 $appExe = Join-Path $releaseDir "MatrixMediaArchiverQt.exe"
