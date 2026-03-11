@@ -32,7 +32,7 @@ set(_cargo_command
 )
 
 if(DEFINED CARGO_ARGS AND NOT "${CARGO_ARGS}" STREQUAL "")
-    string(REPLACE "|" ";" _cargo_args "${CARGO_ARGS}")
+    string(REPLACE "__MATRIX_MEDIA_ARCHIVER_ARGSEP__" ";" _cargo_args "${CARGO_ARGS}")
     list(APPEND _cargo_command ${_cargo_args})
 endif()
 
