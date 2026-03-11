@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Matrix Media Archiver Qt
+GenericName=Matrix Media Downloader
+Comment=Cross-platform Qt port of the Matrix media archiver desktop shell
+Exec=MatrixMediaArchiverQt
+Icon=matrix-media-archiver
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true
+

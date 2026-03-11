@@ -1,0 +1,30 @@
+Matrix Media Archiver Attribution and Non-Commercial License 1.0
+
+Copyright (c) 2026 Brandon Stone
+
+Permission is granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, and distribute the Software, subject to the following conditions:
+
+1. Attribution Required.
+   Any copy of the Software, any substantial portion of the Software, and any modified or derivative work based on the Software must preserve this license text and must give clear credit to Brandon Stone as the original author.
+
+   The attribution must be visible in at least one of the following places, as applicable:
+   - the project README or documentation,
+   - an about box or credits screen,
+   - source file headers or a NOTICE file shipped with the project.
+
+   A compliant attribution statement is:
+   "Includes code from Matrix Media Archiver by Brandon Stone."
+
+2. Non-Commercial Use Only.
+   The Software may not be sold, sublicensed for a fee, included in a paid product or paid service, or otherwise used for commercial advantage or monetary compensation without prior written permission from Brandon Stone.
+
+3. License Notices.
+   Redistributions of source or binary form, with or without modification, must include this license text.
+
+4. No Trademark Rights.
+   This license does not grant permission to use the name, branding, or trademarks of Brandon Stone except as required for attribution under Section 1.
+
+5. No Warranty.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL BRANDON STONE BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This license is source-available and non-commercial. It is not an OSI-approved open source license because commercial use is restricted.

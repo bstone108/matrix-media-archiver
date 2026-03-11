@@ -1,0 +1,27 @@
+[package]
+name = "matrix_media_archiver_backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+eyeball-im = "0.8"
+filetime = "0.2"
+futures-util = "0.3"
+image = { version = "0.25", default-features = true, features = ["jpeg", "png", "gif", "webp", "avif", "bmp", "tiff"] }
+matrix-sdk = { version = "0.16.0", default-features = false, features = ["e2e-encryption", "sqlite", "rustls-tls"] }
+matrix-sdk-ui = { version = "0.16.0", default-features = false, features = ["rustls-tls"] }
+mime = "0.3"
+mime_guess = "2.0"
+reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls", "stream"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+tokio = { version = "1.44", features = ["fs", "io-std", "io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
+tokio-stream = "0.1"
+url = "2.5"
+urlencoding = "2.1"
+uuid = { version = "1.18", features = ["serde", "v4"] }

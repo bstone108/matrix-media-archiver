@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c1728"/>
+      <stop offset="100%" stop-color="#15606c"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd27a"/>
+      <stop offset="100%" stop-color="#df8c36"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5be3df"/>
+      <stop offset="100%" stop-color="#259cb7"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="54" fill="url(#bg)"/>
+  <path d="M60 78h55c8 0 14 2 19 8l8 10h54c13 0 24 11 24 24v55c0 13-11 24-24 24H60c-13 0-24-11-24-24v-73c0-13 11-24 24-24z" fill="url(#folder)"/>
+  <rect x="60" y="112" width="136" height="64" rx="15" fill="#12263b" opacity=".84"/>
+  <rect x="74" y="124" width="31" height="40" rx="8" fill="#4fc7bc"/>
+  <rect x="113" y="124" width="31" height="40" rx="8" fill="#ef9f54"/>
+  <rect x="152" y="124" width="31" height="40" rx="8" fill="#5a9cf0"/>
+  <circle cx="128" cy="72" r="31" fill="url(#badge)"/>
+  <path d="M128 53v28" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+  <path d="M114 69l14 14 14-14" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+

@@ -1,0 +1,214 @@
+name: Desktop CI
+
+on:
+  push:
+    paths:
+      - ".github/workflows/desktop-ci.yml"
+      - "ARM_BUILD_README.md"
+      - "CMakeLists.txt"
+      - "README.md"
+      - "VERSION.txt"
+      - "backend/**"
+      - "build-linux-arm64.command"
+      - "cmake/**"
+      - "packaging/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-ci.yml"
+      - "ARM_BUILD_README.md"
+      - "CMakeLists.txt"
+      - "README.md"
+      - "VERSION.txt"
+      - "backend/**"
+      - "build-linux-arm64.command"
+      - "cmake/**"
+      - "packaging/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Build Linux AppImage (x86_64)
+    runs-on: ubuntu-22.04
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            backend -> backend/target
+
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl desktop-file-utils libgl1-mesa-dev libxcb-cursor0 ninja-build patchelf zip
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "linux_gcc_64"
+          cache: "true"
+
+      - name: Package AppImage
+        run: ./scripts/package-appimage.sh
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage
+          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage.zip
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            backend -> backend/target
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "win64_msvc2022_64"
+          cache: "true"
+
+      - name: Package Windows zip
+        run: ./scripts/package-windows.ps1
+
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64
+          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS (arm64)
+    runs-on: macos-14
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            backend -> backend/target
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "clang_64"
+          cache: "true"
+
+      - name: Package macOS zip
+        run: ./scripts/package-macos.sh
+
+      - name: Upload macOS zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64
+          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64.zip
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub release
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master'))
+    needs:
+      - build-linux
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ needs.build-linux.outputs.app_version }}-linux-x86_64-appimage
+          path: release-artifacts
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ needs.build-windows.outputs.app_version }}-windows-x64
+          path: release-artifacts
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MatrixMediaArchiverQt-${{ needs.build-macos.outputs.app_version }}-macos-arm64
+          path: release-artifacts
+
+      - name: Create or update latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION: ${{ needs.build-linux.outputs.app_version }}
+        run: |
+          tag="v${APP_VERSION}"
+          title="MatrixMediaArchiverQt ${APP_VERSION}"
+          notes="Automated desktop release for ${APP_VERSION}."
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" --title "${title}" --notes "${notes}" --latest
+            gh release upload "${tag}" release-artifacts/* --clobber
+          else
+            gh release create "${tag}" release-artifacts/* --title "${title}" --notes "${notes}" --latest --target "${GITHUB_SHA}"
+          fi
