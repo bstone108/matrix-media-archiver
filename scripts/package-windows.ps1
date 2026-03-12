@@ -66,6 +66,7 @@ if (-not (Test-Path $backendExe)) {
 }
 
 $windeployqt = (Get-Command windeployqt.exe -ErrorAction Stop).Source
+$qtBinDir = Split-Path -Parent $windeployqt
 
 if (Test-Path $stageDir) {
     Remove-Item -Recurse -Force $stageDir
@@ -81,6 +82,13 @@ Copy-Item $backendExe $stageDir
     --no-translations `
     --dir $stageDir `
     (Join-Path $stageDir "MatrixMediaArchiverQt.exe")
+
+foreach ($dllName in @("D3Dcompiler_47.dll", "opengl32sw.dll", "libEGL.dll", "libGLESv2.dll")) {
+    $dllPath = Join-Path $qtBinDir $dllName
+    if (Test-Path $dllPath) {
+        Copy-Item $dllPath $stageDir -Force
+    }
+}
 
 if (Test-Path $archivePath) {
     Remove-Item -Force $archivePath
