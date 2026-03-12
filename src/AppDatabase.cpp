@@ -242,10 +242,25 @@ QVector<DownloadJobRecord> AppDatabase::fetchJobs() const
 {
     QVector<DownloadJobRecord> jobs;
     QSqlQuery query(database_);
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     query.prepare(QStringLiteral(
         "SELECT id, room_id, event_id, mxc_url, original_filename, mime_type, category, state, retry_count, "
         "next_eligible_at, last_failure_at, last_error, sha256, saved_relative_path, created_at, updated_at "
-        "FROM download_jobs ORDER BY created_at DESC, id DESC"));
+        "FROM download_jobs "
+        "ORDER BY "
+        "CASE state "
+        "    WHEN ?1 THEN 0 "
+        "    WHEN ?2 THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ?5 THEN 0 ELSE 1 END "
+        "    WHEN ?3 THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ?5 THEN 0 ELSE 1 END "
+        "    WHEN ?4 THEN 2 "
+        "    ELSE 3 "
+        "END, "
+        "COALESCE(last_failure_at, created_at) ASC, id ASC"));
+    query.addBindValue(QStringLiteral("queued"));
+    query.addBindValue(QStringLiteral("coolingDown"));
+    query.addBindValue(QStringLiteral("undecryptablePending"));
+    query.addBindValue(QStringLiteral("failedPermanent"));
+    query.addBindValue(now);
 
     if (!query.exec()) {
         return jobs;

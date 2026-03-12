@@ -18,6 +18,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -699,7 +700,21 @@ void MainWindow::populateDashboardPage()
             : QStringLiteral("--:--:--");
         lines.append(QStringLiteral("%1  [%2] %3").arg(timestamp, entry.subsystem, entry.message));
     }
-    dashboardLogView_->setPlainText(lines.join(QLatin1Char('\n')));
+    const QString logText = lines.join(QLatin1Char('\n'));
+    QScrollBar *scrollBar = dashboardLogView_->verticalScrollBar();
+    const int previousScrollValue = scrollBar->value();
+    const bool followTail = scrollBar->maximum() <= 0
+        || (scrollBar->maximum() - previousScrollValue) <= 1;
+
+    if (dashboardLogView_->toPlainText() != logText) {
+        dashboardLogView_->setPlainText(logText);
+    }
+
+    if (followTail) {
+        scrollBar->setValue(scrollBar->maximum());
+    } else {
+        scrollBar->setValue(qMin(previousScrollValue, scrollBar->maximum()));
+    }
 }
 
 void MainWindow::populateSettingsPage()

@@ -775,8 +775,9 @@ async fn remove_directory_if_exists(path: &Path) -> Result<()> {
     match tokio_fs::remove_dir_all(path).await {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error)
-            .with_context(|| format!("Failed to remove directory {}", path.display())),
+        Err(error) => {
+            Err(error).with_context(|| format!("Failed to remove directory {}", path.display()))
+        }
     }
 }
 
@@ -2361,30 +2362,31 @@ async fn handle_job_failure(
 ) -> Result<()> {
     let description = error.to_string();
     let lowered = description.to_ascii_lowercase();
+    let settings = settings.read().await.clone();
+    let next_eligible_at =
+        Utc::now() + chrono::Duration::minutes(i64::from(settings.retry_cooldown_minutes.max(1)));
     if lowered.contains("decrypt") || lowered.contains("utd") {
         database
-            .mark_job_undecryptable(job.id, &description)
+            .mark_job_undecryptable(job.id, next_eligible_at, &description)
             .await?;
         database
             .insert_log(
                 AppLogLevel::Warning,
                 "queue",
                 &format!(
-                    "Marked {} as undecryptable pending keys.",
+                    "Marked {} as undecryptable pending keys until {}.",
                     job.original_filename
                         .clone()
-                        .unwrap_or_else(|| job.event_id.clone())
+                        .unwrap_or_else(|| job.event_id.clone()),
+                    next_eligible_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 ),
             )
             .await?;
         return Ok(());
     }
 
-    let settings = settings.read().await.clone();
     let retry_count = job.retry_count + 1;
     let permanently_failed = retry_count >= settings.retry_limit;
-    let next_eligible_at =
-        Utc::now() + chrono::Duration::minutes(i64::from(settings.retry_cooldown_minutes.max(1)));
     database
         .mark_job_cooling_down(
             job.id,

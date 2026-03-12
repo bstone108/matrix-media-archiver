@@ -542,8 +542,8 @@ impl AppDatabase {
             "SELECT * FROM download_jobs
              WHERE
                 state = ?1
-                OR (state = ?2 AND (next_eligible_at IS NULL OR next_eligible_at <= ?3))
-                OR state = ?4
+                OR (state = ?2 AND (next_eligible_at IS NULL OR next_eligible_at <= ?4))
+                OR (state = ?3 AND (next_eligible_at IS NULL OR next_eligible_at <= ?4))
              ORDER BY COALESCE(last_failure_at, created_at) ASC, id ASC
              LIMIT 1",
         )?;
@@ -552,8 +552,8 @@ impl AppDatabase {
                 params![
                     DownloadJobState::Queued.as_storage_key(),
                     DownloadJobState::CoolingDown.as_storage_key(),
-                    iso_string(&now),
                     DownloadJobState::UndecryptablePending.as_storage_key(),
+                    iso_string(&now),
                 ],
                 Self::map_job,
             )
@@ -657,16 +657,24 @@ impl AppDatabase {
         Ok(())
     }
 
-    pub async fn mark_job_undecryptable(&self, id: i64, error: &str) -> Result<()> {
+    pub async fn mark_job_undecryptable(
+        &self,
+        id: i64,
+        next_eligible_at: DateTime<Utc>,
+        error: &str,
+    ) -> Result<()> {
         let connection = self.inner.lock().await;
+        let failed_at = Utc::now();
         connection.execute(
             "UPDATE download_jobs
-             SET state = ?1, last_error = ?2, updated_at = ?3
-             WHERE id = ?4",
+             SET state = ?1, next_eligible_at = ?2, last_failure_at = ?3, last_error = ?4, updated_at = ?5
+             WHERE id = ?6",
             params![
                 DownloadJobState::UndecryptablePending.as_storage_key(),
+                iso_string(&next_eligible_at),
+                iso_string(&failed_at),
                 error,
-                iso_now(),
+                iso_string(&failed_at),
                 id,
             ],
         )?;
@@ -727,7 +735,11 @@ impl AppDatabase {
              ORDER BY
                 CASE state
                     WHEN ?5 THEN 0
-                    WHEN ?6 THEN 0
+                    WHEN ?6 THEN
+                        CASE
+                            WHEN next_eligible_at IS NULL OR next_eligible_at <= ?8 THEN 0
+                            ELSE 1
+                        END
                     WHEN ?7 THEN
                         CASE
                             WHEN next_eligible_at IS NULL OR next_eligible_at <= ?8 THEN 0
@@ -747,8 +759,8 @@ impl AppDatabase {
                 DownloadJobState::UndecryptablePending.as_storage_key(),
                 DownloadJobState::FailedPermanent.as_storage_key(),
                 DownloadJobState::Queued.as_storage_key(),
-                DownloadJobState::UndecryptablePending.as_storage_key(),
                 DownloadJobState::CoolingDown.as_storage_key(),
+                DownloadJobState::UndecryptablePending.as_storage_key(),
                 iso_string(&now),
                 DownloadJobState::FailedPermanent.as_storage_key(),
                 limit,
@@ -1159,4 +1171,152 @@ pub fn ensure_relative_to_root(root: &str, path: &str) -> Result<String> {
     path.strip_prefix(&(root.to_owned() + "/"))
         .map(ToOwned::to_owned)
         .ok_or_else(|| anyhow!("Path {path} is not inside root {root}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn temp_database_path() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "matrix-media-archiver-db-test-{}.sqlite3",
+            Uuid::new_v4()
+        ))
+    }
+
+    fn sample_discovery(event_id: &str) -> AttachmentDiscovery {
+        AttachmentDiscovery {
+            room_id: "!room:example.org".to_owned(),
+            event_id: event_id.to_owned(),
+            origin_server_timestamp: Utc::now(),
+            mxc_url: format!("mxc://example.org/{event_id}"),
+            original_filename: Some(format!("{event_id}.bin")),
+            mime_type: Some("application/octet-stream".to_owned()),
+            category: MediaCategory::Other,
+        }
+    }
+
+    async fn set_job_created_at(
+        database: &AppDatabase,
+        event_id: &str,
+        created_at: DateTime<Utc>,
+    ) -> Result<()> {
+        let connection = database.inner.lock().await;
+        connection.execute(
+            "UPDATE download_jobs SET created_at = ?1, updated_at = ?1 WHERE event_id = ?2",
+            params![iso_string(&created_at), event_id],
+        )?;
+        Ok(())
+    }
+
+    async fn remove_database_files(path: &Path) {
+        let _ = tokio::fs::remove_file(path).await;
+        let _ = tokio::fs::remove_file(path.with_extension("sqlite3-shm")).await;
+        let _ = tokio::fs::remove_file(path.with_extension("sqlite3-wal")).await;
+    }
+
+    #[tokio::test]
+    async fn claim_next_eligible_job_skips_ineligible_undecryptable_entries() {
+        let path = temp_database_path();
+        let database = AppDatabase::open(&path).await.expect("open test database");
+        let now = Utc::now();
+
+        database
+            .enqueue_discovery(&sample_discovery("$blocked"))
+            .await
+            .expect("enqueue blocked job");
+        database
+            .enqueue_discovery(&sample_discovery("$ready"))
+            .await
+            .expect("enqueue ready job");
+
+        set_job_created_at(&database, "$blocked", now - Duration::minutes(10))
+            .await
+            .expect("age blocked job");
+        set_job_created_at(&database, "$ready", now - Duration::minutes(5))
+            .await
+            .expect("age ready job");
+
+        let jobs = database.fetch_jobs(10, now).await.expect("fetch jobs");
+        let blocked_job = jobs
+            .iter()
+            .find(|job| job.event_id == "$blocked")
+            .expect("blocked job should exist");
+        database
+            .mark_job_undecryptable(blocked_job.id, now + Duration::minutes(5), "missing keys")
+            .await
+            .expect("mark blocked job undecryptable");
+
+        let claimed = database
+            .claim_next_eligible_job(now)
+            .await
+            .expect("claim job")
+            .expect("expected an eligible job");
+
+        assert_eq!(claimed.event_id, "$ready");
+
+        drop(database);
+        remove_database_files(&path).await;
+    }
+
+    #[tokio::test]
+    async fn fetch_jobs_keeps_ineligible_retries_behind_ready_queue_items() {
+        let path = temp_database_path();
+        let database = AppDatabase::open(&path).await.expect("open test database");
+        let now = Utc::now();
+
+        database
+            .enqueue_discovery(&sample_discovery("$first"))
+            .await
+            .expect("enqueue first job");
+        database
+            .enqueue_discovery(&sample_discovery("$blocked"))
+            .await
+            .expect("enqueue blocked job");
+        database
+            .enqueue_discovery(&sample_discovery("$third"))
+            .await
+            .expect("enqueue third job");
+
+        set_job_created_at(&database, "$first", now - Duration::minutes(12))
+            .await
+            .expect("age first job");
+        set_job_created_at(&database, "$blocked", now - Duration::minutes(11))
+            .await
+            .expect("age blocked job");
+        set_job_created_at(&database, "$third", now - Duration::minutes(10))
+            .await
+            .expect("age third job");
+
+        let jobs = database.fetch_jobs(10, now).await.expect("fetch jobs");
+        let blocked_job = jobs
+            .iter()
+            .find(|job| job.event_id == "$blocked")
+            .expect("blocked job should exist");
+        database
+            .mark_job_undecryptable(blocked_job.id, now + Duration::minutes(5), "missing keys")
+            .await
+            .expect("mark blocked job undecryptable");
+
+        let ordered_jobs = database
+            .fetch_jobs(10, now)
+            .await
+            .expect("fetch ordered jobs");
+        let ordered_event_ids: Vec<_> = ordered_jobs
+            .iter()
+            .map(|job| job.event_id.as_str())
+            .collect();
+
+        assert_eq!(ordered_event_ids, vec!["$first", "$third", "$blocked"]);
+        assert_eq!(
+            ordered_jobs[2].state,
+            DownloadJobState::UndecryptablePending
+        );
+        assert!(ordered_jobs[2].next_eligible_at.is_some());
+        assert!(ordered_jobs[2].last_failure_at.is_some());
+
+        drop(database);
+        remove_database_files(&path).await;
+    }
 }
