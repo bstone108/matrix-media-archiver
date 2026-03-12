@@ -1,6 +1,8 @@
 /reference/
 /.work/
 /builds/
+/.build/
+/qt-port/
 
 /.DS_Store
 **/.DS_Store
