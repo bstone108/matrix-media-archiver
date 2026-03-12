@@ -11,7 +11,7 @@ What the script does:
 - packages a Linux `aarch64` AppImage zip into `out/`
 
 Expected output after a successful run:
-- `out/MatrixMediaArchiverQt-2026.3.12.2-linux-aarch64-appimage.zip`
+- `out/MatrixMediaArchiverQt-2026.3.12.3-linux-aarch64-appimage.zip`
 
 What is not automated here:
 - Windows ARM64 packaging from this Mac host

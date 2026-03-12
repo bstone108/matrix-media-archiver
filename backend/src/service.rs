@@ -294,10 +294,8 @@ impl BackendService {
         let client = connect_client(&self.paths, &self.secret_store, &settings, &password).await?;
         persist_current_session(&self.secret_store, &client).await?;
 
-        let current_user_id = client
-            .user_id()
-            .map(ToString::to_string)
-            .ok_or_else(|| anyhow!("Connected Matrix client has no user id"))?;
+        let current_user_id = runtime_user_id_from_settings(&settings)
+            .ok_or_else(|| anyhow!("Connected Matrix client has no configured user id"))?;
         let device_id = client
             .device_id()
             .map(ToString::to_string)
@@ -764,6 +762,31 @@ fn stored_session_matches_settings_login(
         .unwrap_or(false)
 }
 
+fn runtime_user_id_from_settings(settings: &AppSettings) -> Option<String> {
+    let normalized_username = settings.username.trim();
+    if normalized_username.is_empty() {
+        return None;
+    }
+
+    if normalized_username.starts_with('@') {
+        return Some(normalized_username.to_owned());
+    }
+
+    let trimmed = normalized_username.trim_start_matches('@');
+    if trimmed.contains(':') {
+        return Some(format!("@{trimmed}"));
+    }
+
+    let homeserver_host = reqwest::Url::parse(&settings.homeserver_url)
+        .ok()
+        .and_then(|url| url.host_str().map(ToOwned::to_owned));
+
+    match homeserver_host {
+        Some(host) if !host.is_empty() => Some(format!("@{trimmed}:{host}")),
+        _ => Some(trimmed.to_owned()),
+    }
+}
+
 async fn reset_matrix_store(paths: &AppPaths) -> Result<()> {
     remove_directory_if_exists(&paths.matrix_data_path).await?;
     remove_directory_if_exists(&paths.matrix_cache_path).await?;
@@ -872,11 +895,7 @@ fn schedule_room_refresh(context: Arc<RunningContext>) {
 
 async fn refresh_joined_rooms(context: Arc<RunningContext>) -> Result<()> {
     let settings = context.settings.read().await.clone();
-    let current_user_id = context
-        .client
-        .user_id()
-        .map(ToString::to_string)
-        .unwrap_or_default();
+    let current_user_id = runtime_user_id_from_settings(&settings).unwrap_or_default();
 
     if current_user_id != settings.owner_user_id {
         let invited_rooms = context.client.invited_rooms();
@@ -1360,6 +1379,54 @@ mod tests {
             &stored_session,
             &different_user_settings
         ));
+    }
+
+    #[test]
+    fn runtime_user_id_from_settings_preserves_full_matrix_id() {
+        let settings = AppSettings {
+            homeserver_url: "https://fantasyhaven.me".to_owned(),
+            username: "@meow:fantasyhaven.me".to_owned(),
+            owner_user_id: String::new(),
+            destination_root_path: String::new(),
+            message_limit: 0,
+            time_window_value: 0,
+            time_window_unit: crate::domain::TimeWindowUnit::Day,
+            retry_cooldown_minutes: 0,
+            retry_limit: 0,
+            download_worker_count: 0,
+            failed_job_retention_value: 0,
+            failed_job_retention_unit: crate::domain::FailedJobRetentionUnit::Day,
+            desired_power_state: true,
+        };
+
+        assert_eq!(
+            runtime_user_id_from_settings(&settings).as_deref(),
+            Some("@meow:fantasyhaven.me")
+        );
+    }
+
+    #[test]
+    fn runtime_user_id_from_settings_expands_localpart_with_homeserver() {
+        let settings = AppSettings {
+            homeserver_url: "https://fantasyhaven.me".to_owned(),
+            username: "meow".to_owned(),
+            owner_user_id: String::new(),
+            destination_root_path: String::new(),
+            message_limit: 0,
+            time_window_value: 0,
+            time_window_unit: crate::domain::TimeWindowUnit::Day,
+            retry_cooldown_minutes: 0,
+            retry_limit: 0,
+            download_worker_count: 0,
+            failed_job_retention_value: 0,
+            failed_job_retention_unit: crate::domain::FailedJobRetentionUnit::Day,
+            desired_power_state: true,
+        };
+
+        assert_eq!(
+            runtime_user_id_from_settings(&settings).as_deref(),
+            Some("@meow:fantasyhaven.me")
+        );
     }
 
     #[test]
