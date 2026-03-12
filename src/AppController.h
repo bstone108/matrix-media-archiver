@@ -59,6 +59,7 @@ private:
     void logInfo(const QString &subsystem, const QString &message);
     void logWarning(const QString &subsystem, const QString &message);
     void logError(const QString &subsystem, const QString &message);
+    void scheduleRefresh();
     void updateRefreshTimer();
 
     AppPaths paths_;
@@ -75,4 +76,5 @@ private:
     QVector<ActivityLogEntry> logs_;
     int waitingQueueCount_ = 0;
     QString lastErrorMessage_;
+    bool refreshQueued_ = false;
 };

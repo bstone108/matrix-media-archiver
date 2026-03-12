@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 
 #include <QApplication>
+#include <QIcon>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -20,6 +21,7 @@ int runApplication(int argc, char *argv[])
     application.setOrganizationName(QStringLiteral("BrandonStone"));
     application.setApplicationName(QStringLiteral("MatrixMediaArchiverQt"));
     application.setApplicationVersion(QStringLiteral(MATRIX_MEDIA_ARCHIVER_VERSION_STRING));
+    application.setWindowIcon(QIcon(QStringLiteral(":/icons/matrix-media-archiver.png")));
 
     AppController controller;
     controller.initialize();

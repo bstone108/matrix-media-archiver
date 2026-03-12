@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="matrix-media-archiver.png">matrix-media-archiver.png</file>
+    </qresource>
+</RCC>

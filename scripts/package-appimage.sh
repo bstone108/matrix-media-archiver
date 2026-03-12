@@ -12,7 +12,7 @@ VERSION_FILE="${ROOT_DIR}/VERSION.txt"
 ARCH="${ARCH:-x86_64}"
 APP_NAME="MatrixMediaArchiverQt"
 DESKTOP_FILE="${ROOT_DIR}/packaging/linux/MatrixMediaArchiverQt.desktop"
-ICON_FILE="${ROOT_DIR}/packaging/linux/matrix-media-archiver.svg"
+ICON_FILE="${ROOT_DIR}/packaging/icons/matrix-media-archiver.png"
 
 if [[ ! -f "${VERSION_FILE}" ]]; then
   echo "Version file not found: ${VERSION_FILE}" >&2

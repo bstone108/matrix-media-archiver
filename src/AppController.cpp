@@ -31,7 +31,7 @@ AppController::AppController(QObject *parent)
     backend_->setRuntimeChangedCallback([this](const BotRuntimeSnapshot &runtime) {
         runtime_ = runtime;
         updateRefreshTimer();
-        emit stateChanged();
+        scheduleRefresh();
     });
     backend_->setBackendErrorCallback([this](const QString &message) {
         if (message.isEmpty()) {
@@ -39,7 +39,7 @@ AppController::AppController(QObject *parent)
         }
         lastErrorMessage_ = message;
         updateRefreshTimer();
-        emit stateChanged();
+        scheduleRefresh();
     });
 }
 
@@ -57,6 +57,7 @@ void AppController::initialize()
 
 void AppController::refresh()
 {
+    refreshQueued_ = false;
     rooms_ = database_.fetchRooms();
     jobs_ = database_.fetchJobs();
     logs_ = database_.fetchRecentLogs();
@@ -353,6 +354,16 @@ void AppController::logWarning(const QString &subsystem, const QString &message)
 void AppController::logError(const QString &subsystem, const QString &message)
 {
     database_.insertLog(AppLogLevel::Error, subsystem, message);
+}
+
+void AppController::scheduleRefresh()
+{
+    if (refreshQueued_) {
+        return;
+    }
+
+    refreshQueued_ = true;
+    QTimer::singleShot(0, this, &AppController::refresh);
 }
 
 void AppController::updateRefreshTimer()

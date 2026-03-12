@@ -249,17 +249,14 @@ QVector<DownloadJobRecord> AppDatabase::fetchJobs() const
         "FROM download_jobs "
         "ORDER BY "
         "CASE state "
-        "    WHEN ?1 THEN 0 "
-        "    WHEN ?2 THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ?5 THEN 0 ELSE 1 END "
-        "    WHEN ?3 THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ?5 THEN 0 ELSE 1 END "
-        "    WHEN ?4 THEN 2 "
+        "    WHEN 'queued' THEN 0 "
+        "    WHEN 'coolingDown' THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ? THEN 0 ELSE 1 END "
+        "    WHEN 'undecryptablePending' THEN CASE WHEN next_eligible_at IS NULL OR next_eligible_at <= ? THEN 0 ELSE 1 END "
+        "    WHEN 'failedPermanent' THEN 2 "
         "    ELSE 3 "
         "END, "
         "COALESCE(last_failure_at, created_at) ASC, id ASC"));
-    query.addBindValue(QStringLiteral("queued"));
-    query.addBindValue(QStringLiteral("coolingDown"));
-    query.addBindValue(QStringLiteral("undecryptablePending"));
-    query.addBindValue(QStringLiteral("failedPermanent"));
+    query.addBindValue(now);
     query.addBindValue(now);
 
     if (!query.exec()) {

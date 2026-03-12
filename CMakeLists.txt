@@ -104,6 +104,19 @@ set(MATRIX_MEDIA_ARCHIVER_BACKEND_SOURCES
     backend/src/service.rs
 )
 
+set(MATRIX_MEDIA_ARCHIVER_APP_ICON_PNG
+    packaging/icons/matrix-media-archiver.png
+)
+set(MATRIX_MEDIA_ARCHIVER_APP_ICON_QRC
+    packaging/icons/MatrixMediaArchiverQt.qrc
+)
+set(MATRIX_MEDIA_ARCHIVER_APP_ICON_ICNS
+    packaging/macos/MatrixMediaArchiverQt.icns
+)
+set(MATRIX_MEDIA_ARCHIVER_APP_ICON_RC
+    packaging/windows/MatrixMediaArchiverQt.rc
+)
+
 set(MATRIX_MEDIA_ARCHIVER_BACKEND_DIR ${CMAKE_CURRENT_SOURCE_DIR}/backend)
 set(MATRIX_MEDIA_ARCHIVER_BACKEND_BINARY_NAME matrix_media_archiver_backend)
 if(WIN32)
@@ -190,7 +203,23 @@ set(MATRIX_MEDIA_ARCHIVER_QT_SOURCES
     src/SecretStore.cpp
     src/SecretStore.h
     src/main.cpp
+    ${MATRIX_MEDIA_ARCHIVER_APP_ICON_QRC}
 )
+
+if(APPLE)
+    list(APPEND MATRIX_MEDIA_ARCHIVER_QT_SOURCES
+        ${MATRIX_MEDIA_ARCHIVER_APP_ICON_ICNS}
+    )
+    set_source_files_properties(${MATRIX_MEDIA_ARCHIVER_APP_ICON_ICNS}
+        PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+    )
+endif()
+
+if(WIN32)
+    list(APPEND MATRIX_MEDIA_ARCHIVER_QT_SOURCES
+        ${MATRIX_MEDIA_ARCHIVER_APP_ICON_RC}
+    )
+endif()
 
 qt_add_executable(MatrixMediaArchiverQt
     WIN32
@@ -212,6 +241,12 @@ target_link_libraries(MatrixMediaArchiverQt
 target_compile_definitions(MatrixMediaArchiverQt
     PRIVATE MATRIX_MEDIA_ARCHIVER_VERSION_STRING="${MATRIX_MEDIA_ARCHIVER_APP_VERSION}"
 )
+
+if(APPLE)
+    set_target_properties(MatrixMediaArchiverQt PROPERTIES
+        MACOSX_BUNDLE_ICON_FILE MatrixMediaArchiverQt.icns
+    )
+endif()
 
 add_custom_command(TARGET MatrixMediaArchiverQt POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -235,8 +270,8 @@ if(UNIX AND NOT APPLE)
     install(FILES packaging/linux/MatrixMediaArchiverQt.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
     )
-    install(FILES packaging/linux/matrix-media-archiver.svg
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    install(FILES ${MATRIX_MEDIA_ARCHIVER_APP_ICON_PNG}
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps
     )
 endif()
 
