@@ -29,6 +29,53 @@ $stageDir = if ($env:STAGE_DIR) { $env:STAGE_DIR } else { Join-Path $rootDir ".w
 $buildsDir = if ($env:BUILDS_DIR) { $env:BUILDS_DIR } else { Join-Path $rootDir "builds" }
 $archivePath = Join-Path $buildsDir "MatrixMediaArchiverQt-$version-windows-$windowsArch.zip"
 
+function Get-VcRuntimeDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Architecture
+    )
+
+    $candidatePaths = New-Object System.Collections.Generic.List[string]
+
+    if ($env:VCToolsRedistDir) {
+        $candidatePaths.Add((Join-Path $env:VCToolsRedistDir "$Architecture\\Microsoft.VC143.CRT"))
+    }
+
+    if ($env:VCINSTALLDIR) {
+        $redistRoot = Join-Path $env:VCINSTALLDIR "Redist\\MSVC"
+        if (Test-Path $redistRoot) {
+            Get-ChildItem -Path $redistRoot -Directory -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending |
+                ForEach-Object {
+                    $candidatePaths.Add((Join-Path $_.FullName "$Architecture\\Microsoft.VC143.CRT"))
+                }
+        }
+    }
+
+    $vswhere = Get-Command vswhere.exe -ErrorAction SilentlyContinue
+    if ($vswhere) {
+        $installationPath = & $vswhere.Source -latest -products * -property installationPath 2>$null
+        if ($installationPath) {
+            $redistRoot = Join-Path $installationPath "VC\\Redist\\MSVC"
+            if (Test-Path $redistRoot) {
+                Get-ChildItem -Path $redistRoot -Directory -ErrorAction SilentlyContinue |
+                    Sort-Object Name -Descending |
+                    ForEach-Object {
+                        $candidatePaths.Add((Join-Path $_.FullName "$Architecture\\Microsoft.VC143.CRT"))
+                    }
+            }
+        }
+    }
+
+    foreach ($candidatePath in $candidatePaths) {
+        if (Test-Path $candidatePath) {
+            return (Resolve-Path $candidatePath).Path
+        }
+    }
+
+    return $null
+}
+
 New-Item -ItemType Directory -Force -Path $buildsDir | Out-Null
 
 rustup target add $rustTarget
@@ -87,6 +134,21 @@ foreach ($dllName in @("D3Dcompiler_47.dll", "opengl32sw.dll", "libEGL.dll", "li
     $dllPath = Join-Path $qtBinDir $dllName
     if (Test-Path $dllPath) {
         Copy-Item $dllPath $stageDir -Force
+    }
+}
+
+$vcRuntimeDir = Get-VcRuntimeDirectory -Architecture $windowsArch
+if (-not $vcRuntimeDir) {
+    throw "Could not locate the Visual C++ runtime redistributables for $windowsArch."
+}
+
+Get-ChildItem -Path $vcRuntimeDir -Filter "*.dll" -File | ForEach-Object {
+    Copy-Item $_.FullName $stageDir -Force
+}
+
+foreach ($requiredRuntimeDll in @("msvcp140.dll", "vcruntime140.dll")) {
+    if (-not (Test-Path (Join-Path $stageDir $requiredRuntimeDll))) {
+        throw "Required Visual C++ runtime DLL missing from package: $requiredRuntimeDll"
     }
 }
 
