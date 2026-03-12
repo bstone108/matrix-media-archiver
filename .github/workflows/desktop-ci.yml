@@ -33,8 +33,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  QT_VERSION: "6.10.2"
-  AQT_VERSION: "3.3.0"
 
 permissions:
   contents: read
@@ -79,17 +77,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl desktop-file-utils libgl1-mesa-dev libxcb-cursor0 ninja-build patchelf zip
 
       - name: Install Qt
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "aqtinstall==${AQT_VERSION}"
-          python -m aqt install-qt linux desktop "${QT_VERSION}" linux_gcc_64 --outputdir "${RUNNER_TEMP}/qt"
-          echo "${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_64/bin" >> "$GITHUB_PATH"
-          {
-            echo "QT_ROOT_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_64"
-            echo "QT_PREFIX=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_64"
-            echo "Qt6_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_64/lib/cmake/Qt6"
-            echo "CMAKE_PREFIX_PATH=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_64"
-          } >> "$GITHUB_ENV"
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "linux_gcc_64"
+          cache: "true"
+          setup-python: "false"
 
       - name: Package AppImage
         run: ./scripts/package-appimage.sh
@@ -140,17 +133,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl desktop-file-utils libgl1-mesa-dev libxcb-cursor0 ninja-build patchelf zip
 
       - name: Install Qt
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "aqtinstall==${AQT_VERSION}"
-          python -m aqt install-qt linux_arm64 desktop "${QT_VERSION}" linux_gcc_arm64 --outputdir "${RUNNER_TEMP}/qt"
-          echo "${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_arm64/bin" >> "$GITHUB_PATH"
-          {
-            echo "QT_ROOT_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_arm64"
-            echo "QT_PREFIX=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_arm64"
-            echo "Qt6_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_arm64/lib/cmake/Qt6"
-            echo "CMAKE_PREFIX_PATH=${RUNNER_TEMP}/qt/${QT_VERSION}/linux_gcc_arm64"
-          } >> "$GITHUB_ENV"
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          host: "linux_arm64"
+          arch: "linux_gcc_arm64"
+          cache: "true"
+          setup-python: "false"
 
       - name: Package AppImage
         run: ARCH=aarch64 ./scripts/package-appimage.sh
@@ -203,17 +192,12 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install Qt
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "aqtinstall==$env:AQT_VERSION"
-          python -m aqt install-qt windows desktop $env:QT_VERSION win64_msvc2022_64 --outputdir "$env:RUNNER_TEMP\qt"
-          $qtRoot = Join-Path $env:RUNNER_TEMP "qt\$env:QT_VERSION\win64_msvc2022_64"
-          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $qtRoot "bin")
-          @(
-            "QT_ROOT_DIR=$qtRoot"
-            "Qt6_DIR=$(Join-Path $qtRoot 'lib\cmake\Qt6')"
-            "CMAKE_PREFIX_PATH=$qtRoot"
-          ) | Add-Content -Path $env:GITHUB_ENV
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "win64_msvc2022_64"
+          cache: "true"
+          setup-python: "false"
 
       - name: Package Windows zip
         run: ./scripts/package-windows.ps1
@@ -266,17 +250,13 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install Qt
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "aqtinstall==$env:AQT_VERSION"
-          python -m aqt install-qt windows_arm64 desktop $env:QT_VERSION win64_msvc2022_arm64 --outputdir "$env:RUNNER_TEMP\qt"
-          $qtRoot = Join-Path $env:RUNNER_TEMP "qt\$env:QT_VERSION\win64_msvc2022_arm64"
-          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $qtRoot "bin")
-          @(
-            "QT_ROOT_DIR=$qtRoot"
-            "Qt6_DIR=$(Join-Path $qtRoot 'lib\cmake\Qt6')"
-            "CMAKE_PREFIX_PATH=$qtRoot"
-          ) | Add-Content -Path $env:GITHUB_ENV
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          host: "windows_arm64"
+          arch: "win64_msvc2022_arm64"
+          cache: "true"
+          setup-python: "false"
 
       - name: Package Windows zip
         run: |
@@ -326,17 +306,12 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install Qt
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "aqtinstall==${AQT_VERSION}"
-          python -m aqt install-qt mac desktop "${QT_VERSION}" clang_64 --outputdir "${RUNNER_TEMP}/qt"
-          echo "${RUNNER_TEMP}/qt/${QT_VERSION}/clang_64/bin" >> "$GITHUB_PATH"
-          {
-            echo "QT_ROOT_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/clang_64"
-            echo "QT_PREFIX=${RUNNER_TEMP}/qt/${QT_VERSION}/clang_64"
-            echo "Qt6_DIR=${RUNNER_TEMP}/qt/${QT_VERSION}/clang_64/lib/cmake/Qt6"
-            echo "CMAKE_PREFIX_PATH=${RUNNER_TEMP}/qt/${QT_VERSION}/clang_64"
-          } >> "$GITHUB_ENV"
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.2"
+          arch: "clang_64"
+          cache: "true"
+          setup-python: "false"
 
       - name: Package macOS zip
         run: ./scripts/package-macos.sh
