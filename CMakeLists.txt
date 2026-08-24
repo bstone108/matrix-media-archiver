@@ -7,6 +7,10 @@ if(NOT MATRIX_MEDIA_ARCHIVER_APP_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]
     message(FATAL_ERROR "VERSION.txt must contain a version in year.month.day.build format")
 endif()
 
+if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum supported macOS version")
+endif()
+
 project(MatrixMediaArchiverQt VERSION ${MATRIX_MEDIA_ARCHIVER_APP_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -244,7 +248,14 @@ target_compile_definitions(MatrixMediaArchiverQt
 
 if(APPLE)
     set_target_properties(MatrixMediaArchiverQt PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "MatrixMediaArchiverQt"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${MATRIX_MEDIA_ARCHIVER_APP_VERSION}"
+        MACOSX_BUNDLE_COPYRIGHT "Copyright © Brandon Browning Stone"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "me.bstone108.MatrixMediaArchiverQt"
         MACOSX_BUNDLE_ICON_FILE MatrixMediaArchiverQt.icns
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+        MACOSX_BUNDLE_INFO_STRING "Matrix media downloader"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${MATRIX_MEDIA_ARCHIVER_APP_VERSION}"
     )
 endif()
 
