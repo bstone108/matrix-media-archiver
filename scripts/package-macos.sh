@@ -182,7 +182,7 @@ submit_for_notarization() {
   local status=""
 
   echo "Submitting ${label} for notarization: ${artifact_path}"
-  output_file="$(mktemp "${WORK_DIR}/notary.XXXXXX.json")"
+  output_file="$(mktemp "${WORK_DIR}/notary.XXXXXX")"
 
   if ! xcrun notarytool submit "${artifact_path}" \
       --apple-id "${APPLE_ID}" \
