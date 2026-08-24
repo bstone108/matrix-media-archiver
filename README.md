@@ -26,14 +26,12 @@ Windows x64 and arm64 zip:
 - open the extracted folder
 - run `MatrixMediaArchiverQt.exe`
 
-macOS arm64 zip:
-- unzip the release archive
-- open `MatrixMediaArchiverQt.app`
-- if Gatekeeper quarantines it on your own machine:
+macOS arm64:
 
-```bash
-xattr -dr com.apple.quarantine MatrixMediaArchiverQt.app
-```
+- open the `.dmg`, then drag `MatrixMediaArchiverQt` into `Applications`
+- or unzip the `.zip` and open `MatrixMediaArchiverQt.app`
+
+Release builds are Developer ID signed and notarized.
 
 ## First-Time Setup
 
