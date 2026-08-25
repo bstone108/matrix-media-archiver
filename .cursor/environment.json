@@ -1,0 +1,8 @@
+{
+  "name": "MatrixMediaArchiverQt",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "install": "bash .cursor/install.sh"
+}
