@@ -37,20 +37,72 @@ env:
 permissions:
   contents: read
 
+# Date.build is assigned only on the publish path (push to main/master or
+# workflow_dispatch). Pull requests and other test runs leave VERSION.txt
+# alone so they do not consume a release number. CI must not commit
+# VERSION.txt (that path filter would loop).
+
 jobs:
-  build-linux:
-    name: Build Linux AppImage (x86_64)
+  assign-version:
+    name: Prepare version
     runs-on: ubuntu-22.04
     outputs:
       app_version: ${{ steps.version.outputs.app_version }}
+      should_stamp: ${{ steps.version.outputs.should_stamp }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Read version
+      - name: Test version helper
+        run: python3 tests/test_next_app_version.py -v
+
+      - name: Select app version
         id: version
-        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) }}
+        run: |
+          set -euo pipefail
+          if [[ "${PUBLISH}" == "true" ]]; then
+            version="$(python3 scripts/next-app-version.py --strict | tr -d '\r\n')"
+            should_stamp=true
+            echo "Assigned next release version ${version} (America/Chicago date.build)"
+          else
+            version="$(tr -d '\r\n' < VERSION.txt)"
+            should_stamp=false
+            echo "Non-publish CI; leaving VERSION.txt as ${version}"
+          fi
+          if [[ ! "${version}" =~ ^[1-9][0-9]*\.[1-9][0-9]*\.[1-9][0-9]*\.[1-9][0-9]*$ ]]; then
+            echo "Refusing invalid date.build version: ${version}" >&2
+            exit 1
+          fi
+          echo "app_version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "should_stamp=${should_stamp}" >> "${GITHUB_OUTPUT}"
+
+  build-linux:
+    name: Build Linux AppImage (x86_64)
+    needs: assign-version
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Stamp release VERSION.txt
+        if: needs.assign-version.outputs.should_stamp == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.assign-version.outputs.app_version }}'
+          printf '%s\n' "${version}" > VERSION.txt
+          stamped="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "${stamped}" != "${version}" ]]; then
+            echo "VERSION.txt mismatch: '${stamped}' != '${version}'" >&2
+            exit 1
+          fi
+          echo "Stamped VERSION.txt with ${stamped} for publish"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -90,23 +142,32 @@ jobs:
       - name: Upload AppImage
         uses: actions/upload-artifact@v6
         with:
-          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage
-          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-x86_64-appimage.zip
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-x86_64-appimage
+          path: builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-x86_64-appimage.zip
           if-no-files-found: error
 
   build-linux-arm64:
     name: Build Linux AppImage (arm64)
+    needs: assign-version
     runs-on: ubuntu-24.04-arm
-    outputs:
-      app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Read version
-        id: version
-        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+      - name: Stamp release VERSION.txt
+        if: needs.assign-version.outputs.should_stamp == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.assign-version.outputs.app_version }}'
+          printf '%s\n' "${version}" > VERSION.txt
+          stamped="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "${stamped}" != "${version}" ]]; then
+            echo "VERSION.txt mismatch: '${stamped}' != '${version}'" >&2
+            exit 1
+          fi
+          echo "Stamped VERSION.txt with ${stamped} for publish"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -147,28 +208,35 @@ jobs:
       - name: Upload AppImage
         uses: actions/upload-artifact@v6
         with:
-          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-aarch64-appimage
-          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-linux-aarch64-appimage.zip
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-aarch64-appimage
+          path: builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-aarch64-appimage.zip
           if-no-files-found: error
 
   build-windows:
     name: Build Windows (x64)
+    needs: assign-version
     runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
-    outputs:
-      app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Read version
-        id: version
+      - name: Stamp release VERSION.txt
+        if: needs.assign-version.outputs.should_stamp == 'true'
+        shell: bash
         run: |
-          $version = (Get-Content VERSION.txt -Raw).Trim()
-          "app_version=$version" >> $env:GITHUB_OUTPUT
+          set -euo pipefail
+          version='${{ needs.assign-version.outputs.app_version }}'
+          printf '%s\n' "${version}" > VERSION.txt
+          stamped="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "${stamped}" != "${version}" ]]; then
+            echo "VERSION.txt mismatch: '${stamped}' != '${version}'" >&2
+            exit 1
+          fi
+          echo "Stamped VERSION.txt with ${stamped} for publish"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -205,28 +273,35 @@ jobs:
       - name: Upload Windows zip
         uses: actions/upload-artifact@v6
         with:
-          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64
-          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-x64.zip
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-x64
+          path: builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-x64.zip
           if-no-files-found: error
 
   build-windows-arm64:
     name: Build Windows (arm64)
+    needs: assign-version
     runs-on: windows-11-arm
     defaults:
       run:
         shell: pwsh
-    outputs:
-      app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Read version
-        id: version
+      - name: Stamp release VERSION.txt
+        if: needs.assign-version.outputs.should_stamp == 'true'
+        shell: bash
         run: |
-          $version = (Get-Content VERSION.txt -Raw).Trim()
-          "app_version=$version" >> $env:GITHUB_OUTPUT
+          set -euo pipefail
+          version='${{ needs.assign-version.outputs.app_version }}'
+          printf '%s\n' "${version}" > VERSION.txt
+          stamped="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "${stamped}" != "${version}" ]]; then
+            echo "VERSION.txt mismatch: '${stamped}' != '${version}'" >&2
+            exit 1
+          fi
+          echo "Stamped VERSION.txt with ${stamped} for publish"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -266,23 +341,32 @@ jobs:
       - name: Upload Windows zip
         uses: actions/upload-artifact@v6
         with:
-          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-arm64
-          path: builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-windows-arm64.zip
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-arm64
+          path: builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-arm64.zip
           if-no-files-found: error
 
   build-macos:
     name: Build macOS (arm64)
+    needs: assign-version
     runs-on: macos-14
-    outputs:
-      app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Read version
-        id: version
-        run: echo "app_version=$(tr -d '\r\n' < VERSION.txt)" >> "$GITHUB_OUTPUT"
+      - name: Stamp release VERSION.txt
+        if: needs.assign-version.outputs.should_stamp == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.assign-version.outputs.app_version }}'
+          printf '%s\n' "${version}" > VERSION.txt
+          stamped="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "${stamped}" != "${version}" ]]; then
+            echo "VERSION.txt mismatch: '${stamped}' != '${version}'" >&2
+            exit 1
+          fi
+          echo "Stamped VERSION.txt with ${stamped} for publish"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -363,10 +447,10 @@ jobs:
       - name: Upload macOS zip and dmg
         uses: actions/upload-artifact@v6
         with:
-          name: MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-macos-arm64
           path: |
-            builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64.zip
-            builds/MatrixMediaArchiverQt-${{ steps.version.outputs.app_version }}-macos-arm64.dmg
+            builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-macos-arm64.zip
+            builds/MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-macos-arm64.dmg
           if-no-files-found: error
 
       - name: Clean up signing keychain
@@ -381,6 +465,7 @@ jobs:
     name: Publish GitHub release
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master'))
     needs:
+      - assign-version
       - build-linux
       - build-linux-arm64
       - build-windows
@@ -394,38 +479,38 @@ jobs:
       - name: Download Linux artifact
         uses: actions/download-artifact@v5
         with:
-          name: MatrixMediaArchiverQt-${{ needs.build-linux.outputs.app_version }}-linux-x86_64-appimage
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-x86_64-appimage
           path: release-artifacts/linux
 
       - name: Download Linux ARM64 artifact
         uses: actions/download-artifact@v5
         with:
-          name: MatrixMediaArchiverQt-${{ needs.build-linux-arm64.outputs.app_version }}-linux-aarch64-appimage
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-linux-aarch64-appimage
           path: release-artifacts/linux-arm64
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v5
         with:
-          name: MatrixMediaArchiverQt-${{ needs.build-windows.outputs.app_version }}-windows-x64
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-x64
           path: release-artifacts/windows
 
       - name: Download Windows ARM64 artifact
         uses: actions/download-artifact@v5
         with:
-          name: MatrixMediaArchiverQt-${{ needs.build-windows-arm64.outputs.app_version }}-windows-arm64
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-windows-arm64
           path: release-artifacts/windows-arm64
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v5
         with:
-          name: MatrixMediaArchiverQt-${{ needs.build-macos.outputs.app_version }}-macos-arm64
+          name: MatrixMediaArchiverQt-${{ needs.assign-version.outputs.app_version }}-macos-arm64
           path: release-artifacts/macos
 
       - name: Create or update latest release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          APP_VERSION: ${{ needs.build-linux.outputs.app_version }}
+          APP_VERSION: ${{ needs.assign-version.outputs.app_version }}
         run: |
           tag="v${APP_VERSION}"
           title="MatrixMediaArchiverQt ${APP_VERSION}"
