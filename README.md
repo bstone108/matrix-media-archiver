@@ -26,12 +26,12 @@ Windows x64 and arm64 zip:
 - open the extracted folder
 - run `MatrixMediaArchiverQt.exe`
 
-macOS arm64:
+macOS Apple Silicon (arm64) and Intel (x86_64):
 
 - open the `.dmg`, then drag `MatrixMediaArchiverQt` into `Applications`
 - or unzip the `.zip` and open `MatrixMediaArchiverQt.app`
 
-Release builds are Developer ID signed and notarized.
+Release builds are Developer ID signed, notarized, and stapled (`.app`, `.dmg`, and `.zip`). Pull-request CI compiles unsigned.
 
 ## First-Time Setup
 

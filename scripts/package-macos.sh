@@ -11,8 +11,11 @@ VERSION_FILE="${ROOT_DIR}/VERSION.txt"
 ENTITLEMENTS_PATH="${ROOT_DIR}/packaging/macos/MatrixMediaArchiverQt.entitlements"
 APP_NAME="MatrixMediaArchiverQt"
 ARCH="$(uname -m)"
-APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-}"
+APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-${MACOS_CODESIGN_IDENTITY:-}}"
 NOTARY_TIMEOUT="${NOTARY_TIMEOUT:-30m}"
+# Publish path only. PR/test CI must leave this unset so the app is packaged
+# unsigned (no codesign, notarytool, or stapler).
+MACOS_REQUIRE_NOTARIZATION="${MACOS_REQUIRE_NOTARIZATION:-0}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This packaging script must be run on macOS." >&2
@@ -65,11 +68,15 @@ restore_sql_drivers() {
 }
 
 signing_requested() {
-  [[ -n "${APPLE_SIGNING_IDENTITY}" ]]
+  [[ -n "${APPLE_SIGNING_IDENTITY}" && "${APPLE_SIGNING_IDENTITY}" != "-" ]]
 }
 
 notarization_requested() {
   [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]
+}
+
+publish_signing_required() {
+  [[ "${MACOS_REQUIRE_NOTARIZATION}" == "1" ]]
 }
 
 require_signing_tools() {
@@ -237,15 +244,21 @@ DMG_PATH="${BUILDS_DIR}/${APP_NAME}-${APP_VERSION}-macos-${ARCH}.dmg"
 MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR="${QT_PREFIX}/plugins/sqldrivers"
 MATRIX_MEDIA_ARCHIVER_SQLDRIVER_STASH_DIR=""
 
-if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+if publish_signing_required; then
   if ! signing_requested; then
-    echo "APPLE_SIGNING_IDENTITY must be set in GitHub Actions." >&2
+    echo "APPLE_SIGNING_IDENTITY must be set for a signed/notarized macOS release." >&2
     exit 1
   fi
   if ! notarization_requested; then
-    echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID must be set in GitHub Actions." >&2
+    echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID must be set for a signed/notarized macOS release." >&2
     exit 1
   fi
+elif [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+  # PR/test CI must never codesign or call notarytool, even if secrets are
+  # present in the job environment.
+  echo "GitHub Actions non-publish run: packaging unsigned (no codesign, notarytool, or stapler)."
+  APPLE_SIGNING_IDENTITY=""
+  unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
 fi
 
 mkdir -p "${WORK_DIR}" "${BUILDS_DIR}"
@@ -291,6 +304,8 @@ fi
 if signing_requested; then
   require_signing_tools
   sign_app_bundle "${STAGED_APP}"
+else
+  echo "Skipping codesign (unsigned compile/package)."
 fi
 
 if notarization_requested; then
@@ -298,6 +313,8 @@ if notarization_requested; then
     echo "Notarization requires APPLE_SIGNING_IDENTITY." >&2
     exit 1
   fi
+  # Zip is the notary vehicle for the .app. Staple the ticket back onto the
+  # app bundle, then ship a fresh zip of that stapled .app.
   NOTARY_APP_ZIP="${WORK_DIR}/${APP_NAME}-notarize.zip"
   rm -f "${NOTARY_APP_ZIP}"
   ditto -c -k --sequesterRsrc --keepParent "${STAGED_APP}" "${NOTARY_APP_ZIP}"
@@ -305,6 +322,8 @@ if notarization_requested; then
   xcrun stapler staple "${STAGED_APP}"
   xcrun stapler validate "${STAGED_APP}"
   rm -f "${NOTARY_APP_ZIP}"
+else
+  echo "Skipping app notarytool/stapler (unsigned compile/package)."
 fi
 
 rm -f "${ARCHIVE_PATH}"
@@ -318,12 +337,16 @@ if signing_requested; then
   echo "Signing disk image ${DMG_PATH}"
   codesign --force --sign "${APPLE_SIGNING_IDENTITY}" --timestamp "${DMG_PATH}"
   codesign --verify --verbose=2 "${DMG_PATH}"
+else
+  echo "Skipping dmg codesign (unsigned compile/package)."
 fi
 
 if notarization_requested; then
   submit_for_notarization "${DMG_PATH}" "dmg"
   xcrun stapler staple "${DMG_PATH}"
   xcrun stapler validate "${DMG_PATH}"
+else
+  echo "Skipping dmg notarytool/stapler (unsigned compile/package)."
 fi
 
 echo "Created ${ARCHIVE_PATH}"
