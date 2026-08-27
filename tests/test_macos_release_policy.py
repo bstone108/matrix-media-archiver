@@ -58,6 +58,22 @@ class MacosReleasePolicyTests(unittest.TestCase):
         self.assertIn("stapler staple \"${STAGED_APP}\"", PACKAGE_MACOS)
         self.assertIn("submit_for_notarization \"${DMG_PATH}\" \"dmg\"", PACKAGE_MACOS)
 
+    def test_signs_nested_macos_executables_before_gui_then_app(self) -> None:
+        self.assertIn(
+            'main_exec="${app_bundle}/Contents/MacOS/${APP_NAME}"',
+            PACKAGE_MACOS,
+        )
+        skip_gui = PACKAGE_MACOS.index('[[ "${file}" == "${main_exec}" ]] && continue')
+        sign_gui = PACKAGE_MACOS.index('sign_executable "${main_exec}"')
+        sign_app = PACKAGE_MACOS.index('echo "Signing app bundle ${app_bundle}"')
+        self.assertLess(skip_gui, sign_gui)
+        self.assertLess(sign_gui, sign_app)
+        self.assertIn("matrix_media_archiver_backend", PACKAGE_MACOS)
+        self.assertNotIn(
+            'find "${app_bundle}/Contents/MacOS" -type f',
+            PACKAGE_MACOS,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
