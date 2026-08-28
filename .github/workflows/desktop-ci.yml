@@ -476,7 +476,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub release
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: needs.assign-version.outputs.skip_packaging != 'true' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
     needs:
       - assign-version
       - build-linux

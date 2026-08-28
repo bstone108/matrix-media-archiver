@@ -98,6 +98,7 @@ class MacosReleasePolicyTests(unittest.TestCase):
         release_if = _job_if(WORKFLOW, "publish-release:")
         self.assertIn("workflow_dispatch", release_if)
         self.assertIn("startsWith(github.ref, 'refs/tags/v')", release_if)
+        self.assertIn("skip_packaging != 'true'", release_if)
         self.assertNotRegex(
             release_if,
             r"heads/main|heads/master|ref_name == 'main'|ref_name == 'master'",
