@@ -66,6 +66,8 @@ class SparklePublishPolicyTests(unittest.TestCase):
         self.assertIn("3OHeQ4AYE1Iwgz2MAhdoe/ZgwLal7rrnfnTmA9H8sqs=", INFO_PLIST)
         self.assertIn("SUFeedURL", INFO_PLIST)
         self.assertIn("appcast-macos-arm64.xml", INFO_PLIST)
+        self.assertIn("SUEnableAutomaticChecks", INFO_PLIST)
+        self.assertIn("<key>SUAutomaticallyUpdate</key>\n\t<false/>", INFO_PLIST)
         self.assertIn("SUScheduledCheckInterval", INFO_PLIST)
         self.assertIn("172800", INFO_PLIST)
         self.assertNotIn("SPARKLE_PRIVATE", INFO_PLIST)
