@@ -7,10 +7,10 @@ Chicago day and then increments past any existing git tags or GitHub
 releases named vYEAR.M.D.N.
 
 This helper does not read VERSION.txt. That file is a local/dev fallback
-and is left alone on pull-request CI. Desktop CI calls this helper only
-on the publish path (push to main/master or workflow_dispatch), then
-stamps the computed version into the runner working copy. CI must not
-commit VERSION.txt.
+and is left alone on pull-request and push-to-main CI. Desktop CI calls
+this helper only on workflow_dispatch (the path that assigns a new N).
+A push of an existing v* tag uses that tag's version and does not call
+this helper. CI must not commit VERSION.txt.
 """
 
 from __future__ import annotations

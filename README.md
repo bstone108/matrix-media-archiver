@@ -31,7 +31,7 @@ macOS Apple Silicon (arm64) and Intel (x86_64):
 - open the `.dmg`, then drag `MatrixMediaArchiverQt` into `Applications`
 - or unzip the `.zip` and open `MatrixMediaArchiverQt.app`
 
-Release builds are Developer ID signed, notarized, and stapled (`.app`, `.dmg`, and `.zip`). Pull-request CI compiles unsigned.
+Release builds are Developer ID signed, notarized, and stapled (`.app`, `.dmg`, and `.zip`) on a `v*` tag or `workflow_dispatch`. Pull-request and push-to-main CI compile unsigned.
 
 ## First-Time Setup
 
