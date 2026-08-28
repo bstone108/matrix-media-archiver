@@ -107,16 +107,44 @@ is_macho_executable() {
   [[ "${desc}" == Mach-O*executable* ]]
 }
 
-# Sign nested Mach-O files innermost-first, then the app bundle.
-# Entitlements are applied only to executables (the Qt GUI and Rust backend).
+sign_executable() {
+  local file="$1"
+  echo "Signing executable ${file} ($(file -b "${file}" 2>/dev/null || echo unknown))"
+  codesign --force --options runtime --timestamp \
+    --entitlements "${ENTITLEMENTS_PATH}" \
+    --generate-entitlement-der \
+    --sign "${APPLE_SIGNING_IDENTITY}" \
+    "${file}"
+}
+
+# Sign nested Mach-O files innermost-first, then nested executables (the Rust
+# sidecar), then the Qt GUI, then the app bundle. Entitlements apply only to
+# executables. The sidecar is a Mach-O executable so the library pass skips it;
+# Intel rustc does not ad-hoc-sign, so signing MatrixMediaArchiverQt first
+# fails with "code object is not signed at all" in matrix_media_archiver_backend.
 sign_app_bundle() {
   local app_bundle="$1"
   local file
   local framework
+  local main_exec="${app_bundle}/Contents/MacOS/${APP_NAME}"
 
   if command -v xattr >/dev/null 2>&1; then
     xattr -cr "${app_bundle}" || true
   fi
+
+  echo "Mach-O classification for Contents/MacOS:"
+  shopt -s nullglob
+  for file in "${app_bundle}/Contents/MacOS"/*; do
+    [[ -f "${file}" ]] || continue
+    if is_macho_executable "${file}"; then
+      echo "  $(basename "${file}"): $(file -b "${file}" 2>/dev/null || echo unknown) (executable)"
+    elif is_macho "${file}"; then
+      echo "  $(basename "${file}"): $(file -b "${file}" 2>/dev/null || echo unknown) (mach-o, not executable)"
+    else
+      echo "  $(basename "${file}"): $(file -b "${file}" 2>/dev/null || echo unknown)"
+    fi
+  done
+  shopt -u nullglob
 
   while IFS= read -r file; do
     [[ -f "${file}" ]] || continue
@@ -134,15 +162,21 @@ sign_app_bundle() {
 
   while IFS= read -r file; do
     [[ -f "${file}" ]] || continue
+    [[ "${file}" == "${main_exec}" ]] && continue
     if is_macho_executable "${file}"; then
-      echo "Signing executable ${file}"
-      codesign --force --options runtime --timestamp \
-        --entitlements "${ENTITLEMENTS_PATH}" \
-        --generate-entitlement-der \
-        --sign "${APPLE_SIGNING_IDENTITY}" \
-        "${file}"
+      sign_executable "${file}"
     fi
-  done < <(find "${app_bundle}/Contents/MacOS" -type f)
+  done < <(find "${app_bundle}" -type f | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
+
+  if [[ ! -f "${main_exec}" ]]; then
+    echo "Main executable not found: ${main_exec}" >&2
+    exit 1
+  fi
+  if ! is_macho_executable "${main_exec}"; then
+    echo "Main binary is not a Mach-O executable ($(file -b "${main_exec}" 2>/dev/null || echo unknown)): ${main_exec}" >&2
+    exit 1
+  fi
+  sign_executable "${main_exec}"
 
   echo "Signing app bundle ${app_bundle}"
   codesign --force --options runtime --timestamp \
