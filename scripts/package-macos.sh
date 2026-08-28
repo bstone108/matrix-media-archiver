@@ -154,6 +154,21 @@ sign_app_bundle() {
     fi
   done < <(find "${app_bundle}" -type f | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
 
+  # Sparkle.framework contains Downloader.xpc, Installer.xpc, and Updater.app.
+  # Sign those nested bundles before the framework and before the outer app.
+  while IFS= read -r xpc; do
+    [[ -e "${xpc}" ]] || continue
+    echo "Signing XPC service ${xpc}"
+    codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${xpc}"
+  done < <(find "${app_bundle}" -name "*.xpc" | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
+
+  while IFS= read -r nested_app; do
+    [[ -d "${nested_app}" ]] || continue
+    [[ "${nested_app}" == "${app_bundle}" ]] && continue
+    echo "Signing nested app ${nested_app}"
+    codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${nested_app}"
+  done < <(find "${app_bundle}" -name "*.app" -type d | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
+
   while IFS= read -r framework; do
     [[ -d "${framework}" ]] || continue
     echo "Signing framework ${framework}"
@@ -328,6 +343,19 @@ if [[ -d "${MATRIX_MEDIA_ARCHIVER_SQLDRIVER_DIR}" ]]; then
 fi
 
 "${MACDEPLOYQT_BIN}" "${STAGED_APP}" -always-overwrite
+
+SPARKLE_FRAMEWORK="${BUILD_DIR}/sparkle/extracted/Sparkle.framework"
+if [[ ! -d "${SPARKLE_FRAMEWORK}" ]]; then
+  SPARKLE_FRAMEWORK="$(find "${BUILD_DIR}/sparkle" -type d -name Sparkle.framework | head -n 1 || true)"
+fi
+if [[ -z "${SPARKLE_FRAMEWORK}" || ! -d "${SPARKLE_FRAMEWORK}" ]]; then
+  echo "Sparkle.framework missing from the CMake build tree at ${BUILD_DIR}/sparkle" >&2
+  exit 1
+fi
+mkdir -p "${STAGED_APP}/Contents/Frameworks"
+rm -rf "${STAGED_APP}/Contents/Frameworks/Sparkle.framework"
+ditto "${SPARKLE_FRAMEWORK}" "${STAGED_APP}/Contents/Frameworks/Sparkle.framework"
+echo "Embedded Sparkle.framework from ${SPARKLE_FRAMEWORK}"
 
 BACKEND_BIN="${STAGED_APP}/Contents/MacOS/matrix_media_archiver_backend"
 if [[ ! -f "${BACKEND_BIN}" ]]; then

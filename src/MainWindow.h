@@ -119,6 +119,7 @@ private:
     QComboBox *downloadWorkersCombo_ = nullptr;
     QSpinBox *failedRetentionValueSpin_ = nullptr;
     QComboBox *failedRetentionUnitCombo_ = nullptr;
+    QPushButton *checkForUpdatesButton_ = nullptr;
     QLabel *settingsVersionValue_ = nullptr;
 
     QTextBrowser *helpBrowser_ = nullptr;
