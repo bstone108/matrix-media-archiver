@@ -74,9 +74,11 @@ class SparklePublishPolicyTests(unittest.TestCase):
 
     def test_package_macos_embeds_and_signs_sparkle_nested_code(self) -> None:
         self.assertIn("Sparkle.framework", PACKAGE_MACOS)
+        self.assertIn("Signing Sparkle Autoupdate", PACKAGE_MACOS)
         self.assertIn("Signing XPC service", PACKAGE_MACOS)
         self.assertIn("Signing nested app", PACKAGE_MACOS)
         self.assertIn('[[ "${nested_app}" == "${app_bundle}" ]] && continue', PACKAGE_MACOS)
+        self.assertIn("is_inside_nested_bundle", PACKAGE_MACOS)
 
 
 if __name__ == "__main__":
