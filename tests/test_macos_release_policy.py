@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -90,6 +91,105 @@ class MacosReleasePolicyTests(unittest.TestCase):
         self.assertLess(nested_idx, skip_gui)
         self.assertLess(framework_idx, sign_app)
 
+    def test_signs_sparkle_autoupdate_before_framework_without_app_entitlements(
+        self,
+    ) -> None:
+        body = _sign_app_bundle_source(PACKAGE_MACOS)
+        auto_idx = body.index("Signing Sparkle Autoupdate")
+        xpc_idx = body.index("Signing XPC service")
+        nested_idx = body.index("Signing nested app")
+        framework_idx = body.index('echo "Signing framework ${framework}"')
+        remaining_idx = body.index("is_inside_nested_bundle")
+        self.assertLess(auto_idx, xpc_idx)
+        self.assertLess(xpc_idx, nested_idx)
+        self.assertLess(nested_idx, framework_idx)
+        self.assertLess(framework_idx, remaining_idx)
+        self.assertIn(
+            '-path "*/Sparkle.framework/Versions/*/Autoupdate"',
+            body,
+        )
+        auto_block = body[auto_idx:xpc_idx]
+        self.assertIn(
+            "codesign --force --options runtime --timestamp --sign",
+            auto_block,
+        )
+        self.assertNotIn("--entitlements", auto_block)
+        self.assertNotIn("sign_executable", auto_block)
+        self.assertNotIn("--deep", auto_block)
+
+    def test_remaining_macho_executables_skip_nested_bundle_paths(self) -> None:
+        body = _sign_app_bundle_source(PACKAGE_MACOS)
+        skip_gui = body.index('[[ "${file}" == "${main_exec}" ]] && continue')
+        remaining_sign = body.index('sign_executable "${file}"')
+        sign_gui = body.index('sign_executable "${main_exec}"')
+        remaining = body[skip_gui:remaining_sign]
+        self.assertLess(skip_gui, remaining_sign)
+        self.assertLess(remaining_sign, sign_gui)
+        self.assertIn("is_inside_nested_bundle", remaining)
+        helper = _bash_function_source(PACKAGE_MACOS, "is_inside_nested_bundle")
+        self.assertIn('".framework/"', helper)
+        self.assertIn('".xpc/"', helper)
+        self.assertIn('".app/"', helper)
+
+    def test_sparkle_nested_helpers_are_not_signed_via_sign_executable(self) -> None:
+        body = _sign_app_bundle_source(PACKAGE_MACOS)
+        sparkle_start = body.index("Signing Sparkle Autoupdate")
+        remaining_start = body.index("is_inside_nested_bundle")
+        sparkle_region = body[sparkle_start:remaining_start]
+        self.assertNotIn("sign_executable", sparkle_region)
+        self.assertNotIn("--entitlements", sparkle_region)
+        for helper_echo in (
+            "Signing Sparkle Autoupdate",
+            "Signing XPC service",
+            "Signing nested app",
+        ):
+            self.assertIn(helper_echo, sparkle_region)
+        self.assertEqual(body.count("sign_executable"), 2)
+        self.assertIn('sign_executable "${file}"', body)
+        self.assertIn('sign_executable "${main_exec}"', body)
+
+    def test_does_not_use_codesign_deep_to_sign(self) -> None:
+        for line in PACKAGE_MACOS.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#") or "codesign" not in stripped:
+                continue
+            if "codesign --verify" in stripped:
+                continue
+            self.assertNotIn("--deep", stripped, stripped)
+
+    def test_is_inside_nested_bundle_matches_sparkle_helpers_not_sidecar(
+        self,
+    ) -> None:
+        helper = _bash_function_source(PACKAGE_MACOS, "is_inside_nested_bundle")
+        probe = helper + r"""
+app="/tmp/MatrixMediaArchiverQt.app"
+check() {
+  local file="$1"
+  local expect="$2"
+  local got=1
+  if is_inside_nested_bundle "${app}" "${file}"; then
+    got=0
+  fi
+  if [[ "${got}" != "${expect}" ]]; then
+    echo "FAIL ${file} got=${got} expect=${expect}" >&2
+    exit 1
+  fi
+}
+check "${app}/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 0
+check "${app}/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer" 0
+check "${app}/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader" 0
+check "${app}/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater" 0
+check "${app}/Contents/MacOS/matrix_media_archiver_backend" 1
+check "${app}/Contents/MacOS/MatrixMediaArchiverQt" 1
+"""
+        completed = subprocess.run(
+            ["bash", "-c", probe],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_push_includes_v_star_tags_without_path_filters(self) -> None:
         on_section = _top_level_block(WORKFLOW, "on:")
         push_block = _child_block(on_section, "push:")
@@ -142,6 +242,28 @@ class MacosReleasePolicyTests(unittest.TestCase):
         tag_branch = assign_script.split('elif [[ "${PUBLISH}" == "true" ]]; then', 1)[0]
         self.assertIn("${REF_NAME#v}", tag_branch)
         self.assertNotIn("next-app-version.py", tag_branch)
+
+
+def _sign_app_bundle_source(script: str) -> str:
+    return _bash_function_source(script, "sign_app_bundle")
+
+
+def _bash_function_source(script: str, name: str) -> str:
+    lines = script.splitlines(keepends=True)
+    start = None
+    prefix = f"{name}() {{"
+    for index, line in enumerate(lines):
+        if line.startswith(prefix):
+            start = index
+            break
+    if start is None:
+        raise AssertionError(f"missing function {name}")
+    collected = [lines[start]]
+    for line in lines[start + 1 :]:
+        collected.append(line)
+        if line.rstrip("\n") == "}":
+            return "".join(collected)
+    raise AssertionError(f"unclosed function {name}")
 
 
 def _top_level_block(text: str, header: str) -> str:

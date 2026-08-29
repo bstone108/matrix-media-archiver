@@ -117,15 +117,27 @@ sign_executable() {
     "${file}"
 }
 
-# Sign nested Mach-O files innermost-first, then nested executables (the Rust
-# sidecar), then the Qt GUI, then the app bundle. Entitlements apply only to
-# executables. The sidecar is a Mach-O executable so the library pass skips it;
-# Intel rustc does not ad-hoc-sign, so signing MatrixMediaArchiverQt first
-# fails with "code object is not signed at all" in matrix_media_archiver_backend.
+# Sign nested Mach-O files innermost-first, then Sparkle helpers inside-out
+# (Autoupdate, then XPC/Updater.app, then Sparkle.framework), then remaining
+# executables (the Rust sidecar), then the Qt GUI, then the outer app bundle.
+# App entitlements apply only to the sidecar, Qt GUI, and outer .app — never
+# to Sparkle Autoupdate / XPC / Updater. The sidecar is a Mach-O executable
+# so the library pass skips it; Intel rustc does not ad-hoc-sign, so signing
+# MatrixMediaArchiverQt first fails with "code object is not signed at all"
+# in matrix_media_archiver_backend. Do not use codesign --deep to sign.
+is_inside_nested_bundle() {
+  local app_bundle="$1"
+  local file="$2"
+  local relative="${file#"${app_bundle}/"}"
+  [[ "${relative}" != "${file}" ]] || return 1
+  [[ "${relative}" == *".framework/"* || "${relative}" == *".xpc/"* || "${relative}" == *".app/"* ]]
+}
+
 sign_app_bundle() {
   local app_bundle="$1"
   local file
   local framework
+  local autoupdate
   local main_exec="${app_bundle}/Contents/MacOS/${APP_NAME}"
 
   if command -v xattr >/dev/null 2>&1; then
@@ -154,8 +166,18 @@ sign_app_bundle() {
     fi
   done < <(find "${app_bundle}" -type f | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
 
+  # Sparkle.framework/Versions/*/Autoupdate is a bare Mach-O executable, so the
+  # library pass skips it. Sign it with hardened runtime + timestamp only (no
+  # app entitlements) before sealing Sparkle.framework.
+  while IFS= read -r autoupdate; do
+    [[ -f "${autoupdate}" && ! -L "${autoupdate}" ]] || continue
+    echo "Signing Sparkle Autoupdate ${autoupdate}"
+    codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${autoupdate}"
+  done < <(find "${app_bundle}" -path "*/Sparkle.framework/Versions/*/Autoupdate" | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
+
   # Sparkle.framework contains Downloader.xpc, Installer.xpc, and Updater.app.
   # Sign those nested bundles before the framework and before the outer app.
+  # Do not apply the app entitlements.
   while IFS= read -r xpc; do
     [[ -e "${xpc}" ]] || continue
     echo "Signing XPC service ${xpc}"
@@ -175,9 +197,15 @@ sign_app_bundle() {
     codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${framework}"
   done < <(find "${app_bundle}" -name "*.framework" -type d | awk '{ print gsub(/\//, "/") "\t" $0 }' | sort -nr | cut -f2-)
 
+  # Remaining Mach-O executables (Rust sidecar). Skip anything already sealed
+  # inside a .framework, .xpc, or nested .app so Autoupdate / Installer /
+  # Downloader / Updater are never re-signed with app entitlements.
   while IFS= read -r file; do
     [[ -f "${file}" ]] || continue
     [[ "${file}" == "${main_exec}" ]] && continue
+    if is_inside_nested_bundle "${app_bundle}" "${file}"; then
+      continue
+    fi
     if is_macho_executable "${file}"; then
       sign_executable "${file}"
     fi
