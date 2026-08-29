@@ -1,8 +1,10 @@
 #include "AppController.h"
 
+#include "AppUpdater.h"
 #include "MatrixClientBackend.h"
 #include "ProcessMatrixClientBackend.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QStandardPaths>
 #include <QTimer>
@@ -53,6 +55,14 @@ void AppController::initialize()
     if (settings_.desiredPowerState) {
         togglePower(true);
     }
+
+    updater_ = createAppUpdater();
+    updater_->start();
+    connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
+        if (updater_) {
+            updater_->installPendingOnQuit();
+        }
+    });
 }
 
 void AppController::refresh()
@@ -339,6 +349,13 @@ void AppController::declineVerification()
 void AppController::dismissError()
 {
     lastErrorMessage_.clear();
+}
+
+void AppController::checkForUpdates()
+{
+    if (updater_) {
+        updater_->checkNow(true);
+    }
 }
 
 void AppController::logInfo(const QString &subsystem, const QString &message)

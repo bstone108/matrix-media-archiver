@@ -34,5 +34,17 @@
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/bstone108/matrix-media-archiver/releases/latest/download/appcast-macos-arm64.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>3OHeQ4AYE1Iwgz2MAhdoe/ZgwLal7rrnfnTmA9H8sqs=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>172800</integer>
 </dict>
 </plist>

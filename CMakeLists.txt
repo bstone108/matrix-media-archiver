@@ -40,7 +40,7 @@ if(WIN32 AND MINGW)
     find_package(
         Qt6 ${MATRIX_MEDIA_ARCHIVER_MIN_QT_VERSION}
         REQUIRED
-        COMPONENTS Core Gui Widgets Test
+        COMPONENTS Core Gui Widgets Network Test
         OPTIONAL_COMPONENTS Sql
     )
 
@@ -78,7 +78,7 @@ if(WIN32 AND MINGW)
         )
     endif()
 else()
-    find_package(Qt6 ${MATRIX_MEDIA_ARCHIVER_MIN_QT_VERSION} REQUIRED COMPONENTS Core Gui Widgets Sql Test)
+    find_package(Qt6 ${MATRIX_MEDIA_ARCHIVER_MIN_QT_VERSION} REQUIRED COMPONENTS Core Gui Widgets Sql Network Test)
 endif()
 
 find_program(CARGO_EXECUTABLE NAMES cargo HINTS /opt/homebrew/opt/rustup/bin)
@@ -194,9 +194,12 @@ set(MATRIX_MEDIA_ARCHIVER_QT_SOURCES
     src/AppDatabase.h
     src/AppPaths.cpp
     src/AppPaths.h
+    src/AppUpdater.h
     src/Domain.h
     src/FolderNaming.cpp
     src/FolderNaming.h
+    src/GitHubRelease.cpp
+    src/GitHubRelease.h
     src/MainWindow.cpp
     src/MainWindow.h
     src/MatrixClientBackend.h
@@ -206,16 +209,32 @@ set(MATRIX_MEDIA_ARCHIVER_QT_SOURCES
     src/ProcessMatrixClientBackend.h
     src/SecretStore.cpp
     src/SecretStore.h
+    src/UpdateSettings.cpp
+    src/UpdateSettings.h
+    src/UpdateVersion.cpp
+    src/UpdateVersion.h
     src/main.cpp
     ${MATRIX_MEDIA_ARCHIVER_APP_ICON_QRC}
 )
 
 if(APPLE)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchSparkle.cmake)
+    enable_language(OBJCXX)
     list(APPEND MATRIX_MEDIA_ARCHIVER_QT_SOURCES
+        src/MacSparkleUpdater.h
+        src/MacSparkleUpdater.mm
         ${MATRIX_MEDIA_ARCHIVER_APP_ICON_ICNS}
     )
     set_source_files_properties(${MATRIX_MEDIA_ARCHIVER_APP_ICON_ICNS}
         PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+    )
+    set_source_files_properties(src/MacSparkleUpdater.mm PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc -F${MATRIX_MEDIA_ARCHIVER_SPARKLE_FRAMEWORK_PARENT}"
+    )
+else()
+    list(APPEND MATRIX_MEDIA_ARCHIVER_QT_SOURCES
+        src/UpdateChecker.cpp
+        src/UpdateChecker.h
     )
 endif()
 
@@ -241,6 +260,9 @@ target_link_libraries(MatrixMediaArchiverQt
         Qt6::Widgets
         Qt6::Sql
 )
+if(NOT APPLE)
+    target_link_libraries(MatrixMediaArchiverQt PRIVATE Qt6::Network)
+endif()
 
 target_compile_definitions(MatrixMediaArchiverQt
     PRIVATE MATRIX_MEDIA_ARCHIVER_VERSION_STRING="${MATRIX_MEDIA_ARCHIVER_APP_VERSION}"
@@ -256,6 +278,28 @@ if(APPLE)
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
         MACOSX_BUNDLE_INFO_STRING "Matrix media downloader"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${MATRIX_MEDIA_ARCHIVER_APP_VERSION}"
+        BUILD_RPATH "@executable_path/../Frameworks"
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
+    target_compile_options(MatrixMediaArchiverQt PRIVATE
+        "-F${MATRIX_MEDIA_ARCHIVER_SPARKLE_FRAMEWORK_PARENT}"
+    )
+    target_link_options(MatrixMediaArchiverQt PRIVATE
+        "-F${MATRIX_MEDIA_ARCHIVER_SPARKLE_FRAMEWORK_PARENT}"
+        "-Wl,-rpath,@executable_path/../Frameworks"
+    )
+    target_link_libraries(MatrixMediaArchiverQt PRIVATE
+        "-framework Sparkle"
+        "-framework AppKit"
+        "-framework Foundation"
+    )
+    add_custom_command(TARGET MatrixMediaArchiverQt POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_BUNDLE_DIR:MatrixMediaArchiverQt>/Contents/Frameworks"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${MATRIX_MEDIA_ARCHIVER_SPARKLE_FRAMEWORK}"
+            "$<TARGET_BUNDLE_DIR:MatrixMediaArchiverQt>/Contents/Frameworks/Sparkle.framework"
+        COMMENT "Embedding Sparkle.framework in MatrixMediaArchiverQt.app"
     )
 endif()
 
@@ -313,6 +357,25 @@ if(MATRIX_MEDIA_ARCHIVER_BUILD_TESTS)
             Qt6::Test
     )
 
+    qt_add_executable(MatrixMediaArchiverQtUpdateTests
+        tests/UpdateUtilityTests.cpp
+        src/GitHubRelease.cpp
+        src/GitHubRelease.h
+        src/UpdateSettings.cpp
+        src/UpdateSettings.h
+        src/UpdateVersion.cpp
+        src/UpdateVersion.h
+    )
+
+    target_include_directories(MatrixMediaArchiverQtUpdateTests PRIVATE src)
+
+    target_link_libraries(MatrixMediaArchiverQtUpdateTests
+        PRIVATE
+            Qt6::Core
+            Qt6::Test
+    )
+
     enable_testing()
     add_test(NAME MatrixMediaArchiverQtTests COMMAND MatrixMediaArchiverQtTests)
+    add_test(NAME MatrixMediaArchiverQtUpdateTests COMMAND MatrixMediaArchiverQtUpdateTests)
 endif()

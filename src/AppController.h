@@ -4,6 +4,7 @@
 #include "AppPaths.h"
 #include "Domain.h"
 #include "MatrixClientBackend.h"
+#include "AppUpdater.h"
 #include "SecretStore.h"
 
 #include <QObject>
@@ -51,6 +52,7 @@ public slots:
     void approveVerification();
     void declineVerification();
     void dismissError();
+    void checkForUpdates();
 
 signals:
     void stateChanged();
@@ -66,6 +68,7 @@ private:
     AppDatabase database_;
     SecretStore secretStore_;
     std::unique_ptr<MatrixClientBackend> backend_;
+    std::unique_ptr<AppUpdater> updater_;
     QTimer *refreshTimer_ = nullptr;
 
     AppSettings settings_;

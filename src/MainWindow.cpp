@@ -431,7 +431,13 @@ QWidget *MainWindow::buildSettingsPage()
 
     int row = 0;
     form->addWidget(new QLabel(QStringLiteral("App Version"), page), row, 0);
-    form->addWidget(settingsVersionValue_, row++, 1, 1, 2);
+    auto *versionRow = new QHBoxLayout();
+    versionRow->addWidget(settingsVersionValue_);
+    checkForUpdatesButton_ = new QPushButton(QStringLiteral("Check for updates"), page);
+    checkForUpdatesButton_->setFlat(true);
+    versionRow->addWidget(checkForUpdatesButton_);
+    versionRow->addStretch();
+    form->addLayout(versionRow, row++, 1, 1, 2);
     form->addWidget(new QLabel(QStringLiteral("Homeserver URL"), page), row, 0);
     form->addWidget(homeserverEdit_, row++, 1, 1, 2);
     form->addWidget(new QLabel(QStringLiteral("Username"), page), row, 0);
@@ -477,6 +483,7 @@ QWidget *MainWindow::buildSettingsPage()
     layout->addStretch();
 
     connect(chooseButton, &QPushButton::clicked, this, &MainWindow::chooseDestinationFolder);
+    connect(checkForUpdatesButton_, &QPushButton::clicked, controller_, &AppController::checkForUpdates);
     connect(saveButton, &QPushButton::clicked, this, [this]() {
         controller_->saveSettings(gatherSettingsFromUi(), passwordEdit_->text());
     });

@@ -74,6 +74,22 @@ class MacosReleasePolicyTests(unittest.TestCase):
             PACKAGE_MACOS,
         )
 
+    def test_embeds_sparkle_framework_after_macdeployqt(self) -> None:
+        self.assertIn("Sparkle.framework", PACKAGE_MACOS)
+        deploy_idx = PACKAGE_MACOS.index('"${MACDEPLOYQT_BIN}" "${STAGED_APP}" -always-overwrite')
+        sparkle_idx = PACKAGE_MACOS.index("Embedded Sparkle.framework from")
+        self.assertLess(deploy_idx, sparkle_idx)
+
+    def test_signs_sparkle_xpc_and_nested_apps_before_outer_app(self) -> None:
+        xpc_idx = PACKAGE_MACOS.index("Signing XPC service")
+        nested_idx = PACKAGE_MACOS.index("Signing nested app")
+        framework_idx = PACKAGE_MACOS.index('echo "Signing framework ${framework}"')
+        skip_gui = PACKAGE_MACOS.index('[[ "${file}" == "${main_exec}" ]] && continue')
+        sign_app = PACKAGE_MACOS.index('echo "Signing app bundle ${app_bundle}"')
+        self.assertLess(xpc_idx, framework_idx)
+        self.assertLess(nested_idx, skip_gui)
+        self.assertLess(framework_idx, sign_app)
+
     def test_push_includes_v_star_tags_without_path_filters(self) -> None:
         on_section = _top_level_block(WORKFLOW, "on:")
         push_block = _child_block(on_section, "push:")
